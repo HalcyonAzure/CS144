@@ -1,6 +1,7 @@
 #ifndef SPONGE_LIBSPONGE_BYTE_STREAM_HH
 #define SPONGE_LIBSPONGE_BYTE_STREAM_HH
 
+#include <cstddef>
 #include <string>
 
 //! \brief An in-order byte stream.
@@ -11,6 +12,18 @@
 class ByteStream {
   private:
     // Your code here -- add private members as necessary.
+
+    // 容量统计
+    size_t buffer_max_size = 0;
+
+    // 缓冲区
+    std::string buffer = "";
+
+    // 输入和输出
+    std::string input = "", output = "";
+
+    // 计数器
+    size_t wcnt = 0, rcnt = 0;
 
     // Hint: This doesn't need to be a sophisticated data structure at
     // all, but if any of your tests are taking longer than a second,
