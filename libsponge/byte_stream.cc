@@ -50,27 +50,21 @@ void ByteStream::pop_output(const size_t len) {
 //! \param[in] len bytes will be popped and returned
 //! \returns a string
 std::string ByteStream::read(const size_t len) {
-    this->output = buffer.substr(0, len);
+    string output = buffer.substr(0, len);
     pop_output(len);
     return output;
 }
 
-void ByteStream::end_input() {}
+void ByteStream::end_input() { isInputEnd = true; }
 
-// 测试input是否被完全读取
-bool ByteStream::input_ended() const {
-    if (this->input.size() == 0) {
-        return true;
-    }
-    return false;
-}
+bool ByteStream::input_ended() const { return this->isInputEnd; }
 
-size_t ByteStream::buffer_size() const { return 3; }
+size_t ByteStream::buffer_size() const { return buffer.length(); }
 
 // 缓冲区是否为空
 bool ByteStream::buffer_empty() const { return this->buffer.empty(); }
 
-bool ByteStream::eof() const { return this->input.empty(); }
+bool ByteStream::eof() const { return input_ended() && this->buffer.empty(); }
 
 size_t ByteStream::bytes_written() const { return this->wcnt; }
 

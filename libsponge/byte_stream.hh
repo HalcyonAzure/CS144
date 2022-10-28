@@ -19,8 +19,11 @@ class ByteStream {
     // 缓冲区
     std::string buffer = "";
 
-    // 输入和输出
-    std::string input = "", output = "";
+    // 输入
+    std::string input = "";
+
+    // 结束输入的信号
+    bool isInputEnd = false;
 
     // 计数器
     size_t wcnt = 0, rcnt = 0;
