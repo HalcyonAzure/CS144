@@ -12,39 +12,22 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
-ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), buffer(""), input(""), wcnt(0), rcnt(0) {}
+ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), buffer(""), write_count(0), read_count(0) {}
 
 size_t ByteStream::write(const string &data) {
-    this->input = data;
-    size_t cnt = 0;
-    while (!input_ended() && remaining_capacity() && this->input.length()) {
-        this->buffer.push_back(*input.begin());
-        input.erase(0, 1);
-        cnt++;
-    }
-    // 统计写入数据
-    this->wcnt += cnt;
+    size_t cnt = (data.length() > remaining_capacity()) ? remaining_capacity() : data.length();
+    buffer += data.substr(0, cnt);
+    write_count += cnt;
     return cnt;
-    // DUMMY_CODE(data);
-    // return {};
 }
 
 //! \param[in] len bytes will be copied from the output side of the buffer
-string ByteStream::peek_output(const size_t len) const {
-    size_t peek_len = len;
-    string peek_string;
-    string::const_iterator buffer_iter = this->buffer.begin();
-    while (peek_len--) {
-        peek_string.push_back(*buffer_iter);
-        buffer_iter++;
-    }
-    return peek_string;
-}
+string ByteStream::peek_output(const size_t len) const { return buffer.substr(0, len); }
 
 //! \param[in] len bytes will be removed from the output side of the buffer
 void ByteStream::pop_output(const size_t len) {
     buffer.erase(0, len);
-    this->rcnt += len;
+    read_count += len;
 }
 
 //! Read (i.e., copy and then pop) the next "len" bytes of the stream
@@ -53,26 +36,21 @@ void ByteStream::pop_output(const size_t len) {
 std::string ByteStream::read(const size_t len) {
     string output = buffer.substr(0, len);
     pop_output(len);
-    this->rcnt += len;
     return output;
 }
 
-void ByteStream::end_input() {
-    isInputEnd = true;
-    input.clear();
-}
+void ByteStream::end_input() { is_input_end = true; }
 
-bool ByteStream::input_ended() const { return this->isInputEnd; }
+bool ByteStream::input_ended() const { return is_input_end; }
 
 size_t ByteStream::buffer_size() const { return buffer.length(); }
 
-// 缓冲区是否为空
-bool ByteStream::buffer_empty() const { return this->buffer.empty(); }
+bool ByteStream::buffer_empty() const { return buffer.empty(); }
 
-bool ByteStream::eof() const { return input_ended() && this->buffer.empty(); }
+bool ByteStream::eof() const { return input_ended() && buffer.empty(); }
 
-size_t ByteStream::bytes_written() const { return this->wcnt; }
+size_t ByteStream::bytes_written() const { return write_count; }
 
-size_t ByteStream::bytes_read() const { return this->rcnt; }
+size_t ByteStream::bytes_read() const { return read_count; }
 
-size_t ByteStream::remaining_capacity() const { return (this->buffer_max_size - this->buffer.length()); }
+size_t ByteStream::remaining_capacity() const { return buffer_max_size - buffer.length(); }

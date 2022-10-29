@@ -13,20 +13,17 @@ class ByteStream {
   private:
     // Your code here -- add private members as necessary.
 
-    // 容量统计
-    size_t buffer_max_size;
+    // buffer capacity
+    const size_t buffer_max_size;
 
-    // 缓冲区
+    // buffer string
     std::string buffer;
 
-    // 输入
-    std::string input;
+    // input ending flag
+    bool is_input_end = false;
 
-    // 结束输入的信号
-    bool isInputEnd = false;
-
-    // 计数器
-    size_t wcnt, rcnt;
+    // counter
+    size_t write_count, read_count;
 
     // Hint: This doesn't need to be a sophisticated data structure at
     // all, but if any of your tests are taking longer than a second,
