@@ -12,28 +12,31 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
-ByteStream::ByteStream(const size_t capacity) { buffer_max_size = capacity; }
+ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), buffer(""), input(""), wcnt(0), rcnt(0) {}
 
 size_t ByteStream::write(const string &data) {
     this->input += data;
     size_t cnt = 0;
-    while (!input_ended() && remaining_capacity()) {
+    while (!input_ended() && remaining_capacity() && this->input.length()) {
         this->buffer.push_back(*input.begin());
-        input.erase(input.begin());
+        input.erase(0, 1);
         cnt++;
     }
     // 统计写入数据
     this->wcnt += cnt;
     return cnt;
+    // DUMMY_CODE(data);
+    // return {};
 }
 
 //! \param[in] len bytes will be copied from the output side of the buffer
 string ByteStream::peek_output(const size_t len) const {
     size_t peek_len = len;
     string peek_string;
+    string::const_iterator buffer_iter = this->buffer.begin();
     while (peek_len--) {
-        string::const_iterator buffer_iter = this->buffer.begin();
         peek_string.push_back(*buffer_iter);
+        buffer_iter++;
     }
     return peek_string;
 }
@@ -42,8 +45,9 @@ string ByteStream::peek_output(const size_t len) const {
 void ByteStream::pop_output(const size_t len) {
     size_t output_len = len;
     while (output_len--) {
-        buffer.pop_back();
+        buffer.erase(0, 1);
     }
+    this->rcnt += len;
 }
 
 //! Read (i.e., copy and then pop) the next "len" bytes of the stream
@@ -52,6 +56,7 @@ void ByteStream::pop_output(const size_t len) {
 std::string ByteStream::read(const size_t len) {
     string output = buffer.substr(0, len);
     pop_output(len);
+    this->rcnt += len;
     return output;
 }
 
