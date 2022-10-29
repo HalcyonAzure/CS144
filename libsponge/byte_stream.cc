@@ -1,5 +1,6 @@
 #include "byte_stream.hh"
 
+#include <iostream>
 // Dummy implementation of a flow-controlled in-memory byte stream.
 
 // For Lab 0, please replace with a real implementation that passes the
@@ -15,7 +16,9 @@ using namespace std;
 ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), buffer(""), input(""), wcnt(0), rcnt(0) {}
 
 size_t ByteStream::write(const string &data) {
-    this->input += data;
+    cout << "Before Write:" << buffer << " with Data:" << data << endl;
+    this->input = data;
+    cout << "Input: " << input << endl;
     size_t cnt = 0;
     while (!input_ended() && remaining_capacity() && this->input.length()) {
         this->buffer.push_back(*input.begin());
@@ -24,6 +27,7 @@ size_t ByteStream::write(const string &data) {
     }
     // 统计写入数据
     this->wcnt += cnt;
+    cout << "After Write:" << buffer << endl;
     return cnt;
     // DUMMY_CODE(data);
     // return {};
@@ -43,10 +47,9 @@ string ByteStream::peek_output(const size_t len) const {
 
 //! \param[in] len bytes will be removed from the output side of the buffer
 void ByteStream::pop_output(const size_t len) {
-    size_t output_len = len;
-    while (output_len--) {
-        buffer.erase(0, 1);
-    }
+    cout << "Before Pop:" << buffer << " Pop len:" << len << endl;
+    buffer.erase(0, len);
+    cout << "After Pop:" << buffer << endl;
     this->rcnt += len;
 }
 
@@ -60,7 +63,10 @@ std::string ByteStream::read(const size_t len) {
     return output;
 }
 
-void ByteStream::end_input() { isInputEnd = true; }
+void ByteStream::end_input() {
+    isInputEnd = true;
+    input.clear();
+}
 
 bool ByteStream::input_ended() const { return this->isInputEnd; }
 
