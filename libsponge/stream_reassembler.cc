@@ -19,7 +19,7 @@ StreamReassembler::StreamReassembler(const size_t capacity) : cache(), _output(c
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     // extend_size: 按照index和data.length()扩容后的大小
-    size_t extend_size = index + data.length() + 1;
+    size_t extend_size = index + data.length();
     if (extend_size > cache.length()) {
         if (extend_size > _capacity) {
             cache.resize(_capacity);
@@ -41,7 +41,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
     // 如果带有EOF的最后一个字符是在容量内成功被写入的有效位则判断EOF成功
     if (eof && extend_size <= _capacity) {
-        end_pos = extend_size - 1;
+        end_pos = extend_size;
     }
 
     if (write_pos == end_pos) {
