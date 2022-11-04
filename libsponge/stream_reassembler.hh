@@ -12,6 +12,7 @@ class StreamReassembler {
   private:
     std::string cache;
     std::string dirty_check;
+    size_t dirty_number = 0;
     size_t write_pos = 0;
     size_t end_pos = -1;
 
