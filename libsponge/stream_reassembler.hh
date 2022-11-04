@@ -11,7 +11,8 @@
 class StreamReassembler {
   private:
     std::string cache;
-    size_t out_pos = 0;
+    size_t write_pos = 0;
+    size_t end_pos = -1;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes

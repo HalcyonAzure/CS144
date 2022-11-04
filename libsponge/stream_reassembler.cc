@@ -30,17 +30,21 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
     cache.replace(index, data.length(), data);
 
-    if (cache[out_pos]) {
+    if (cache[write_pos]) {
         size_t len = 0;
-        while (cache[out_pos + len]) {
+        while (cache[write_pos + len]) {
             len++;
         }
-        _output.write(cache.substr(out_pos, len));
-        out_pos += len;
+        _output.write(cache.substr(write_pos, len));
+        write_pos += len;
     }
 
     // 如果带有EOF的最后一个字符是在容量内成功被写入的有效位则判断EOF成功
-    if (eof && extend_size - 1 <= _capacity) {
+    if (eof && extend_size <= _capacity) {
+        end_pos = extend_size - 1;
+    }
+
+    if (write_pos == end_pos) {
         _output.end_input();
     }
 }
