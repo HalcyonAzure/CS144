@@ -12,7 +12,11 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
-StreamReassembler::StreamReassembler(const size_t capacity) : cache(), _output(capacity), _capacity(capacity) {}
+StreamReassembler::StreamReassembler(const size_t capacity)
+    : cache(), dirty_check(), _output(capacity), _capacity(capacity) {
+    cache.reserve(capacity);
+    dirty_check.reserve(capacity);
+}
 
 //! \details This function accepts a substring (aka a segment) of bytes,
 //! possibly out-of-order, from the logical stream, and assembles any newly
@@ -23,16 +27,19 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     if (extend_size > cache.length()) {
         if (extend_size > _capacity) {
             cache.resize(_capacity);
+            dirty_check.resize(_capacity);
         } else {
             cache.resize(extend_size);
+            dirty_check.resize(extend_size);
         }
     }
 
     cache.replace(index, data.length(), data);
+    dirty_check.replace(index, data.length(), data.length(), '1');
 
-    if (cache[write_pos]) {
+    if (dirty_check[write_pos]) {
         size_t len = 0;
-        while (cache[write_pos + len]) {
+        while (dirty_check[write_pos + len]) {
             len++;
         }
         _output.write(cache.substr(write_pos, len));
