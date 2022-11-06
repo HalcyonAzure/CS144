@@ -25,8 +25,9 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     // extend_size: 按照index和data.length()扩容后的大小，只会按扩大的来扩容
     size_t extend_size = index + data.length();
 
-    // cache.resize(extend_size);
-    // dirty_check.resize(extend_size);
+    if (eof) {
+        end_pos = extend_size;
+    }
 
     if (extend_size > cache.length()) {
         cache.resize(extend_size);
@@ -38,21 +39,12 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
     if (dirty_check[write_pos]) {
         size_t len = 0;
-        // cout << BLUE << "remaining_capacity(): " << _output.remaining_capacity() << endl;
-        // cout << YELLOW << "len: " << len << RESET << endl;
         size_t output_remaining = _output.remaining_capacity();
         while (dirty_check[write_pos + len] && len < output_remaining) {
-            // cout << RED << "len: " << len << RESET << endl;
             len++;
         }
-        // cout << GREEN << "output remaining: " << output_remaining << RESET << endl;
         _output.write(cache.substr(write_pos, len));
         write_pos += len;
-    }
-
-    // 如果带有EOF的最后一个字符是在容量内成功被写入的有效位则判断EOF成功
-    if (eof) {
-        end_pos = extend_size;
     }
 
     if (write_pos == end_pos) {
