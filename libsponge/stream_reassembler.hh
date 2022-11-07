@@ -34,7 +34,7 @@ class StreamReassembler {
     std::string cache;
     std::string dirty_check;
     size_t write_p = 0;
-    size_t end_p = -1;
+    size_t end_p = SIZE_MAX;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
