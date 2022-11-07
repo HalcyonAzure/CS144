@@ -25,42 +25,46 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     // extend_size: 按照index和data.length()扩容后的大小，只会按扩大的来扩容
     size_t extend_size = index + data.length();
 
+    // 记录EOF的位置
     if (eof) {
-        end_pos = extend_size;
+        end_p = extend_size;
     }
 
+    // 扩容只会变大，不会缩小
     if (extend_size > cache.length()) {
         cache.resize(extend_size);
         dirty_check.resize(extend_size);
     }
 
+    // 将要排序的内容写入cache当中
     cache.replace(index, data.length(), data);
     dirty_check.replace(index, data.length(), data.length(), '1');
 
-    if (dirty_check[write_pos]) {
+    // 检查写入位上是否有字符，有字符则通过滑动len来写入_output，否则跳过
+    if (dirty_check[write_p]) {
         size_t len = 0;
         size_t output_remaining = _output.remaining_capacity();
-        while (dirty_check[write_pos + len] && len < output_remaining) {
+        while (dirty_check[write_p + len] && len < output_remaining) {
             len++;
         }
-        _output.write(cache.substr(write_pos, len));
-        write_pos += len;
+        _output.write(cache.substr(write_p, len));
+        write_p += len;
     }
 
-    if (write_pos == end_pos) {
+    // 写入位和EOF位相同，代表写入结束
+    if (write_p == end_p) {
         _output.end_input();
     }
 }
 
 // 返回缓冲区内还没有处理的内容
 size_t StreamReassembler::unassembled_bytes() const {
-    size_t n = 0;
-    for (auto i = write_pos; i != dirty_check.length(); i++) {
-        if (dirty_check[i])
-            n++;
+    size_t n = write_p;
+    while (not dirty_check[n] && n != cache.length()) {
+        n++;
     }
-    return n;
+    return cache.length() - n;
 }
 
-// 当输入结束并且所有数字都排序的时候代表缓冲区结束
+// 当不再写入新的TCP段并且已有的字段全部排序结束的时候缓冲区不再需要排序
 bool StreamReassembler::empty() const { return _output.eof() && not unassembled_bytes(); }
