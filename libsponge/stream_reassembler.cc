@@ -22,19 +22,23 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
-    // extend_size: 按照index和data.length()扩容后的大小，只会按扩大的来扩容
-    size_t extend_size = index + data.length();
+    // expand_size: 扩容大小和窗口滑动最大值有关
+    size_t expand_size = write_p + _output.remaining_capacity();
+
+    cache.resize(expand_size);
+    dirty_check.resize(expand_size);
 
     // 记录EOF的位置
-    if (eof) {
-        end_p = extend_size;
+    if (eof && index + data.length() <= expand_size) {
+        end_p = index + data.length();
     }
 
-    // 扩容只会变大，不会缩小
-    if (extend_size > cache.length()) {
-        cache.resize(extend_size);
-        dirty_check.resize(extend_size);
-    }
+    // 扩容只会变大，不会缩小,且扩容的容量不会超过_capacity
+    // 最大扩容位置为 write_p + remaining_capacity
+    // if (extend_size > cache.length()) {
+    //     cache.resize(extend_size);
+    //     dirty_check.resize(extend_size);
+    // }
 
     // 将要排序的内容写入cache当中
     cache.replace(index, data.length(), data);
