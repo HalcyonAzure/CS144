@@ -8,7 +8,7 @@
 // You will need to add private members to the class declaration in `stream_reassembler.hh`
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
@@ -22,27 +22,41 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! possibly out-of-order, from the logical stream, and assembles any newly
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
-    // expand_size: 扩容大小和窗口滑动最大值有关
-    size_t expand_size = write_p + _output.remaining_capacity();
+    bool eof_flag = false;
+    size_t expand_size;
 
-    cache.resize(expand_size);
-    dirty_check.resize(expand_size);
-
-    // 记录EOF的位置
-    if (eof && index + data.length() <= expand_size) {
-        end_p = index + data.length();
+    // 取 index + data.length() 和
+    // write_p + _output.remaining_capacity() 中更小的那个作为扩容后的大小
+    if (index + data.length() <= write_p + _output.remaining_capacity()) {
+        // 用于判断EOF是否是在capacity当中的有效字符
+        eof_flag = true;
+        expand_size = index + data.length();
+    } else {
+        expand_size = write_p + _output.remaining_capacity();
     }
 
-    // 扩容只会变大，不会缩小,且扩容的容量不会超过_capacity
-    // 最大扩容位置为 write_p + remaining_capacity
-    // if (extend_size > cache.length()) {
-    //     cache.resize(extend_size);
-    //     dirty_check.resize(extend_size);
-    // }
+    // 记录EOF的位置
+    if (eof && eof_flag) {
+        end_p = expand_size;
+    }
 
-    // 将要排序的内容写入cache当中
+    const size_t cache_raw_length = cache.length();
+
+    // 先扩大一次容量，用于写入多余的内容
+    if (expand_size > cache_raw_length) {
+        cache.resize(expand_size);
+        dirty_check.resize(expand_size);
+    }
+
+    // 将要排序的内容先写入cache当中
     cache.replace(index, data.length(), data);
     dirty_check.replace(index, data.length(), data.length(), '1');
+
+    // 缩回原来的大小，将缓冲区外多余的内容丢弃
+    if (expand_size > cache_raw_length) {
+        cache.resize(expand_size);
+        dirty_check.resize(expand_size);
+    }
 
     // 检查写入位上是否有字符，有字符则通过滑动len来写入_output，否则跳过
     if (dirty_check[write_p]) {
@@ -64,7 +78,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 // 返回缓冲区内还没有处理的内容
 size_t StreamReassembler::unassembled_bytes() const {
     size_t n = write_p;
-    while (not dirty_check[n] && n != cache.length()) {
+    for (size_t i = write_p; n != cache.length() && not dirty_check[i]; i++) {
         n++;
     }
     return cache.length() - n;
