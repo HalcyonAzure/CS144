@@ -142,6 +142,17 @@ int main() {
         //     test.execute(SubmitSegment{"kmg", 7});
         //     test.execute(BytesAvailable(""));
         // }
+        // {
+        //     ReassemblerTestHarness test{6};
+        //     test.execute(SubmitSegment{"defg", 3}.with_eof(true));
+        //     test.execute(BytesAssembled(0));
+        //     test.execute(SubmitSegment{"abc", 0});
+        //     test.execute(BytesAvailable("abcdef"));
+        //     test.execute(BytesAssembled(6));
+        //     test.execute(SubmitSegment{"g", 6});
+        //     test.execute(BytesAvailable("g"));
+        //     test.execute(NotAtEof{});
+        // }
     } catch (const exception &e) {
         cerr << "Exception: " << e.what() << endl;
         return EXIT_FAILURE;
