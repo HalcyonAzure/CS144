@@ -131,6 +131,17 @@ int main() {
             test.execute(BytesAvailable(""));
             test.execute(AtEof{});
         }
+        // My Own Test
+        // {
+        //     ReassemblerTestHarness test{6};
+        //     test.execute(SubmitSegment{"defg", 3});
+        //     test.execute(BytesAssembled(0));
+        //     test.execute(SubmitSegment{"abc", 0});
+        //     test.execute(BytesAvailable("abcdef"));
+        //     test.execute(BytesAssembled(6));
+        //     test.execute(SubmitSegment{"kmg", 7});
+        //     test.execute(BytesAvailable(""));
+        // }
     } catch (const exception &e) {
         cerr << "Exception: " << e.what() << endl;
         return EXIT_FAILURE;
