@@ -30,14 +30,14 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! has a different ISN.
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     const uint64_t L = (1ul << 32);
-    const int64_t a = (checkpoint / L) * L + (n.raw_value() - isn.raw_value()) % L;
-    if (checkpoint > a + L / 2) {
+    const uint64_t a = (checkpoint / L) * L - isn.raw_value() + n.raw_value();
+    if (checkpoint > a + (L * 3) / 2) {
+        return a + 2 * L;
+    } else if (checkpoint > a + L / 2) {
         return a + L;
+    } else if (checkpoint < L) {
+        return n.raw_value() < isn.raw_value() ? a + L : a;
     } else {
-        if (checkpoint < L) {
-            return n.raw_value() < isn.raw_value() ? a + L : a;
-        } else {
-            return checkpoint < a - L / 2 ? a - L : a;
-        }
+        return checkpoint < a - L / 2 ? a - L : a;
     }
 }
