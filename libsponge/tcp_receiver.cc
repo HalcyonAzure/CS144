@@ -15,7 +15,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     if (not is_connect && seg.header().syn == 1) {
         is_connect = true;
         isn = seg.header().seqno;
-        ackno_to_send = isn;
+        ackno_to_send = isn + 1;
     } else if (not is_connect) {
         return;
     }
@@ -27,17 +27,15 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     } else if (seg.header().fin) {
         _reassembler.stream_out().end_input();
     }
-
     checkpoint += seg.payload().size();
 
-    if (seg.header().syn == 1) {
-        ackno_to_send = ackno_to_send + 1;
+    if (seg.header().syn != 1) {
+        ackno_to_send = isn + _reassembler.stream_out().bytes_written() + 1;
     }
+
     if (seg.header().fin == 1) {
         ackno_to_send = ackno_to_send + 1;
     }
-
-    ackno_to_send = ackno_to_send + seg.payload().size();
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {
