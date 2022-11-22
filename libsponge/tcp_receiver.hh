@@ -16,6 +16,7 @@
 class TCPReceiver {
     // flag for connection.
     bool is_connect = false;
+    bool is_fin = false;
 
     // sender's sequence number
     WrappingInt32 ackno_to_send{0};

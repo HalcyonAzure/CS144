@@ -1,9 +1,6 @@
 #include "tcp_receiver.hh"
 
-#include "wrapping_integers.hh"
-
 // Dummy implementation of a TCP receiver
-#include <iostream>
 // For Lab 2, please replace with a real implementation that passes the
 // automated checks run by `make check_lab2`.
 
@@ -17,7 +14,6 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     if (not is_connect && seg.header().syn == 1) {
         is_connect = true;
         isn = seg.header().seqno;
-        ackno_to_send = isn + 1;
         if (seg.payload().size() >= 1) {
             _reassembler.push_substring(seg.payload().copy(), 0, seg.header().fin);
         }
@@ -25,22 +21,22 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         return;
     }
 
+    if (seg.header().fin == 1) {
+        is_fin = true;
+    }
+
     uint64_t index = unwrap(seg.header().seqno, isn, checkpoint);
 
     if (index != 0) {
         _reassembler.push_substring(seg.payload().copy(), index - 1, seg.header().fin);
     }
-
-    if (seg.header().fin && _reassembler.unassembled_bytes() == 0) {
-        _reassembler.stream_out().end_input();
-    }
+    ackno_to_send = isn + _reassembler.stream_out().bytes_written() + 1;
 
     checkpoint += seg.payload().size();
 
-    ackno_to_send = isn + _reassembler.stream_out().bytes_written() + 1;
-
-    if (seg.header().fin == 1) {
+    if (is_fin && _reassembler.unassembled_bytes() == 0) {
         ackno_to_send = ackno_to_send + 1;
+        _reassembler.stream_out().end_input();
     }
 }
 
