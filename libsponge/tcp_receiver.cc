@@ -10,7 +10,7 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 using namespace std;
 
 void TCPReceiver::segment_received(const TCPSegment &seg) {
-    // 在没开始握手的时候等待syn的信号，如果来了则建立链接，并且初始化isn
+    // 等待并处理第一个syn链接
     if (not _is_syn && seg.header().syn) {
         _is_syn = true;
         _isn = seg.header().seqno;
@@ -19,7 +19,12 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    uint64_t stream_index = unwrap(seg.header().seqno, _isn, _checkpoint);
+    // checkpoint的位置就是已经写入完成的字符的数量
+    // In your TCP implementation, you’ll use the index of the last reassembled byte as the checkpoint.
+    uint64_t checkpoint = _reassembler.stream_out().bytes_written();
+
+    // 将内容写入reassembler，判断!=0的原因是为了忽略那些小于等于seq的错误TCP段
+    uint64_t stream_index = unwrap(seg.header().seqno, _isn, checkpoint);
     if (stream_index != 0) {
         _reassembler.push_substring(seg.payload().copy(), stream_index - 1, seg.header().fin);
     }
@@ -28,9 +33,6 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     if (seg.header().fin) {
         _is_fin = true;
     }
-
-    // 在push完新的字符流以后更新checkpoint的位置
-    _checkpoint += seg.payload().size();
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {

@@ -23,9 +23,6 @@ class TCPReceiver {
     // ISN here
     WrappingInt32 _isn{0};
 
-    // checkpoint for the last reassembled byte
-    uint64_t _checkpoint = 0;
-
     //! Our data structure for re-assembling bytes.
     StreamReassembler _reassembler;
 
