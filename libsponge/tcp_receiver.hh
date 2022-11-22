@@ -15,16 +15,20 @@
 //! remote TCPSender.
 class TCPReceiver {
     // flag for connection.
-    bool is_connect = false;
-    bool is_fin = false;
+    bool _is_connect = false;
 
-    // sender's sequence number
-    WrappingInt32 ackno_to_send{0};
+    // whether catch fin flag
+    bool _is_fin = false;
+
+    // ack number
+    WrappingInt32 _ackno{0};
 
     // ISN here
-    WrappingInt32 isn{0};
+    WrappingInt32 _isn{0};
 
-    uint64_t checkpoint = 0;
+    // checkpoint for the last reassembled byte
+    uint64_t _checkpoint = 0;
+
     //! Our data structure for re-assembling bytes.
     StreamReassembler _reassembler;
 
