@@ -15,7 +15,6 @@ int main() {
     try {
         auto rd = get_random_generator();
 
-        cout << "TEST" << endl;
         /* segment before SYN */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
@@ -32,7 +31,6 @@ int main() {
             test.execute(ExpectAckno{WrappingInt32{isn + 1}});
         }
 
-        cout << "TEST" << endl;
         /* segment with SYN + data */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
@@ -49,7 +47,6 @@ int main() {
             test.execute(ExpectBytes{"Hello, CS144!"});
         }
 
-        cout << "TEST" << endl;
         /* empty segment */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
@@ -69,7 +66,6 @@ int main() {
             test.execute(ExpectInputNotEnded{});
         }
 
-        cout << "TEST" << endl;
         /* segment with null byte */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
@@ -86,7 +82,6 @@ int main() {
             test.execute(ExpectInputNotEnded{});
         }
 
-        cout << "TEST" << endl;
         /* segment with data + FIN */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
@@ -105,7 +100,6 @@ int main() {
             test.execute(ExpectEof{});
         }
 
-        cout << "TEST" << endl;
         /* segment with FIN (but can't be assembled yet) */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
@@ -129,7 +123,6 @@ int main() {
             test.execute(ExpectEof{});
         }
 
-        cout << "TEST" << endl;
         /* segment with SYN + data + FIN */
         {
             uint32_t isn = uniform_int_distribution<uint32_t>{0, UINT32_MAX}(rd);
