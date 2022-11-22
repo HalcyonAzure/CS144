@@ -11,35 +11,34 @@ using namespace std;
 
 void TCPReceiver::segment_received(const TCPSegment &seg) {
     // 在没开始握手的时候等待syn的信号，如果来了则建立链接，并且初始化isn
-    if (not _is_connect && seg.header().syn == 1) {
-        _is_connect = true;
+    if (not _is_syn && seg.header().syn) {
+        _is_syn = true;
         _isn = seg.header().seqno;
-        if (seg.payload().size() >= 1) {
-            _reassembler.push_substring(seg.payload().copy(), 0, seg.header().fin);
-        }
-    } else if (not _is_connect) {
+        _reassembler.push_substring(seg.payload().copy(), 0, seg.header().fin);
+    } else if (not _is_syn) {
         return;
     }
 
-    if (seg.header().fin == 1) {
+    uint64_t stream_index = unwrap(seg.header().seqno, _isn, _checkpoint);
+    if (stream_index != 0) {
+        _reassembler.push_substring(seg.payload().copy(), stream_index - 1, seg.header().fin);
+    }
+
+    // 标志结尾的TCP段是否送达
+    if (seg.header().fin) {
         _is_fin = true;
     }
 
-    uint64_t index = unwrap(seg.header().seqno, _isn, _checkpoint);
-
-    if (index != 0) {
-        _reassembler.push_substring(seg.payload().copy(), index - 1, seg.header().fin);
-    }
-    _ackno = _isn + _reassembler.stream_out().bytes_written() + 1;
-
+    // 在push完新的字符流以后更新checkpoint的位置
     _checkpoint += seg.payload().size();
-
-    if (_is_fin && _reassembler.unassembled_bytes() == 0) {
-        _ackno = _ackno + 1;
-        _reassembler.stream_out().end_input();
-    }
 }
 
-optional<WrappingInt32> TCPReceiver::ackno() const { return _is_connect ? optional<WrappingInt32>(_ackno) : nullopt; }
+optional<WrappingInt32> TCPReceiver::ackno() const {
+    WrappingInt32 result = _isn + _is_syn + _reassembler.stream_out().bytes_written();
+    if (_is_fin && _reassembler.unassembled_bytes() == 0) {
+        result = result + _is_fin;
+    }
+    return _is_syn ? optional<WrappingInt32>(result) : nullopt;
+}
 
 size_t TCPReceiver::window_size() const { return _capacity - _reassembler.stream_out().buffer_size(); }

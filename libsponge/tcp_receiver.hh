@@ -15,13 +15,10 @@
 //! remote TCPSender.
 class TCPReceiver {
     // flag for connection.
-    bool _is_connect = false;
+    bool _is_syn = false;
 
     // whether catch fin flag
     bool _is_fin = false;
-
-    // ack number
-    WrappingInt32 _ackno{0};
 
     // ISN here
     WrappingInt32 _isn{0};
