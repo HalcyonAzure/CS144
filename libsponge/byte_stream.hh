@@ -17,7 +17,7 @@ class ByteStream {
     const size_t buffer_max_size;
 
     // buffer string
-    std::string buffer;
+    std::string buffer = "";
 
     // input ending flag
     bool is_input_end = false;

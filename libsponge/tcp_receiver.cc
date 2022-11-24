@@ -5,17 +5,17 @@
 // automated checks run by `make check_lab2`.
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
 void TCPReceiver::segment_received(const TCPSegment &seg) {
     // 等待并处理第一个syn链接
-    if (not _is_syn && seg.header().syn) {
-        _is_syn = true;
+    if ((_is_syn == 0) && seg.header().syn) {
+        _is_syn = 1;
         _isn = seg.header().seqno;
         _reassembler.push_substring(seg.payload().copy(), 0, seg.header().fin);
-    } else if (not _is_syn) {
+    } else if (_is_syn == 0) {
         return;
     }
 
@@ -31,16 +31,16 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 
     // 标志结尾的TCP段是否送达
     if (seg.header().fin) {
-        _is_fin = true;
+        _is_fin = 1;
     }
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {
     WrappingInt32 result = _isn + _is_syn + _reassembler.stream_out().bytes_written();
-    if (_is_fin && _reassembler.unassembled_bytes() == 0) {
+    if ((_is_fin != 0) && _reassembler.unassembled_bytes() == 0) {
         result = result + _is_fin;
     }
-    return _is_syn ? optional<WrappingInt32>(result) : nullopt;
+    return _is_syn != 0 ? optional<WrappingInt32>(result) : nullopt;
 }
 
 size_t TCPReceiver::window_size() const { return _capacity - _reassembler.stream_out().buffer_size(); }

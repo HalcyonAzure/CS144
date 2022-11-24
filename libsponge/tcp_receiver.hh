@@ -6,6 +6,7 @@
 #include "tcp_segment.hh"
 #include "wrapping_integers.hh"
 
+#include <cstdint>
 #include <optional>
 
 //! \brief The "receiver" part of a TCP implementation.
@@ -15,10 +16,10 @@
 //! remote TCPSender.
 class TCPReceiver {
     // flag for connection.
-    bool _is_syn = false;
+    uint32_t _is_syn = 0;
 
     // whether catch fin flag
-    bool _is_fin = false;
+    uint32_t _is_fin = 0;
 
     // ISN here
     WrappingInt32 _isn{0};

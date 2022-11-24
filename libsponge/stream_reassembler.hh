@@ -10,8 +10,8 @@
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
-    std::string cache;
-    std::string dirty_check;
+    std::string cache = "";
+    std::string dirty_check = "";
     size_t write_p = 0;
     size_t end_p = SIZE_MAX;
 

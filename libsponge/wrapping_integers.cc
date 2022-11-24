@@ -6,7 +6,7 @@
 // automated checks run by `make check_lab2`.
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
@@ -29,15 +29,16 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! and the other stream runs from the remote TCPSender to the local TCPReceiver and
 //! has a different ISN.
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
-    const uint64_t L = (1ul << 32);
-    const uint64_t a = (checkpoint / L) * L - isn.raw_value() + n.raw_value();
-    if (checkpoint > a + (L * 3) / 2) {
-        return a + 2 * L;
-    } else if (checkpoint > a + L / 2) {
-        return a + L;
-    } else if (checkpoint < L) {
-        return n.raw_value() < isn.raw_value() ? a + L : a;
-    } else {
-        return checkpoint < a - L / 2 ? a - L : a;
+    const uint64_t length = static_cast<uint64_t>(UINT32_MAX) + 1;
+    const uint64_t pre_index = (checkpoint / length) * length - isn.raw_value() + n.raw_value();
+    if (checkpoint > pre_index + (length * 3) / 2) {
+        return pre_index + 2 * length;
     }
+    if (checkpoint > pre_index + length / 2) {
+        return pre_index + length;
+    }
+    if (checkpoint < length) {
+        return n.raw_value() < isn.raw_value() ? pre_index + length : pre_index;
+    }
+    return checkpoint < pre_index - length / 2 ? pre_index - length : pre_index;
 }

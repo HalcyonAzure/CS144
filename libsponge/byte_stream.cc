@@ -8,11 +8,11 @@
 // You will need to add private members to the class declaration in `byte_stream.hh`
 
 template <typename... Targs>
-void DUMMY_CODE(Targs &&... /* unused */) {}
+void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
-ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), buffer(), write_count(0), read_count(0) {}
+ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), write_count(0), read_count(0) {}
 
 size_t ByteStream::write(const string &data) {
     size_t cnt = (data.length() > remaining_capacity()) ? remaining_capacity() : data.length();

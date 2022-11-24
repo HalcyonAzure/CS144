@@ -12,8 +12,7 @@ void DUMMY_CODE(Targs &&.../* unused */) {}
 
 using namespace std;
 
-StreamReassembler::StreamReassembler(const size_t capacity)
-    : cache(), dirty_check(), _output(capacity), _capacity(capacity) {
+StreamReassembler::StreamReassembler(const size_t capacity) : _output(capacity), _capacity(capacity) {
     cache.reserve(capacity);
     dirty_check.reserve(capacity);
 }
@@ -23,7 +22,7 @@ StreamReassembler::StreamReassembler(const size_t capacity)
 //! contiguous substrings and writes them into the output stream in order.
 void StreamReassembler::push_substring(const string &data, const size_t index, const bool eof) {
     bool eof_flag = false;
-    size_t expand_size;
+    size_t expand_size = 0;
 
     // 取 index + data.length() 和
     // write_p + _output.remaining_capacity() 中更小的那个作为扩容后的大小
@@ -59,10 +58,10 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     }
 
     // 检查写入位上是否有字符，有字符则通过滑动len来写入_output，否则跳过
-    if (dirty_check[write_p]) {
+    if (dirty_check[write_p] != 0) {
         size_t len = 0;
         size_t output_remaining = _output.remaining_capacity();
-        while (dirty_check[write_p + len] && len < output_remaining) {
+        while ((dirty_check[write_p + len] != 0) && len < output_remaining) {
             len++;
         }
         _output.write(cache.substr(write_p, len));
@@ -77,14 +76,14 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
 // 返回缓冲区内还没有处理的内容
 size_t StreamReassembler::unassembled_bytes() const {
-    size_t n = 0;
+    size_t cnt = 0;
     for (size_t i = write_p; i < cache.length(); i++) {
-        if (dirty_check[i]) {
-            n++;
+        if (dirty_check[i] != 0) {
+            cnt++;
         }
     }
-    return n;
+    return cnt;
 }
 
 // 当不再写入新的TCP段并且已有的字段全部排序结束的时候缓冲区不再需要排序
-bool StreamReassembler::empty() const { return _output.eof() && not unassembled_bytes(); }
+bool StreamReassembler::empty() const { return _output.eof() && (unassembled_bytes() == 0); }
