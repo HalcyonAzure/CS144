@@ -17,6 +17,18 @@
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
+    // time ticker
+    size_t _time_ticker = 0;
+
+    // cache string to send
+    std::string _cache = "";
+
+    // ackno
+    size_t _ackno = 0;
+
+    // window_size
+    size_t _window_size = 1;
+
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
 
