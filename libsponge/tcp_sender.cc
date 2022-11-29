@@ -30,7 +30,8 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
-    if (_window_size == 1) {
+    if (_next_seqno == 0) {
+        // cout << "next_seqno: " << _next_seqno << endl;
         TCPSegment signal;
         if (_next_seqno == 0) {
             // ackno小于等于，说明连接没建立，每次都要携带syn
@@ -51,13 +52,14 @@ void TCPSender::fill_window() {
     }
 
     _cache = _stream.read(_window_size);
-    for (size_t i = 0; i < _window_size; i += TCPConfig::MAX_PAYLOAD_SIZE) {
+    for (size_t i = 0; i < _window_size && i < _cache.length(); i += TCPConfig::MAX_PAYLOAD_SIZE) {
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
         TCPSegment section;
         string section_string = _cache.substr(i, segment_payload_size);
         section.payload() = _cache.substr(i, segment_payload_size);
         section.header().seqno = wrap(_next_seqno, _isn);
-        _next_seqno += section_string.length();
+        _next_seqno += section.length_in_sequence_space();
+        _window_size -= section.length_in_sequence_space();
         _segments_out.push(section);
     }
 }
