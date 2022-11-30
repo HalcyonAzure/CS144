@@ -19,9 +19,8 @@ class TCPSender {
   private:
     // time ticker
     size_t _time_ticker = 0;
-
-    // cache string to send
-    std::string _cache = "";
+    size_t _segment_ticker = 0;
+    size_t _rto_ticker = 0;
 
     // ackno
     size_t _ackno = 0;
@@ -29,11 +28,17 @@ class TCPSender {
     // window_size
     size_t _window_size = 1;
 
+    // 超时重传的次数
+    size_t _consecutive_retransmissions = 0;
+
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
 
     //! outbound queue of segments that the TCPSender wants sent
     std::queue<TCPSegment> _segments_out{};
+
+    // 缓存队列
+    std::queue<TCPSegment> _cache_segments{};
 
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
@@ -43,6 +48,9 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+    // 发送数据段
+    void _send_segment(TCPSegment seg);
 
   public:
     //! Initialize a TCPSender

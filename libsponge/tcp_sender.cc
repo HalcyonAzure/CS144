@@ -1,13 +1,8 @@
 #include "tcp_sender.hh"
 
-#include "buffer.hh"
 #include "tcp_config.hh"
-#include "tcp_segment.hh"
-#include "wrapping_integers.hh"
 
-#include <iostream>
 #include <random>
-#include <string>
 
 // Dummy implementation of a TCP sender
 
@@ -31,36 +26,30 @@ uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
     if (_next_seqno == 0) {
-        // cout << "next_seqno: " << _next_seqno << endl;
         TCPSegment signal;
         if (_next_seqno == 0) {
             // ackno小于等于，说明连接没建立，每次都要携带syn
             signal.header().syn = true;
             signal.header().seqno = _isn;
-            if (_ackno == _isn.raw_value() + 1) {
-                signal.header().ack = true;
-            }
+            signal.header().ack = _ackno == _isn.raw_value() + 1 ? true : false;
         }
-        // next seqno 消耗了length_in_sequence_space的字符
-        _next_seqno += signal.length_in_sequence_space();
-        _segments_out.push(signal);
+        _send_segment(signal);
         return;
     }
 
     if (_stream.buffer_empty()) {
         return;
     }
-
-    _cache = _stream.read(_window_size);
-    for (size_t i = 0; i < _window_size && i < _cache.length(); i += TCPConfig::MAX_PAYLOAD_SIZE) {
+    
+    for (size_t i = 0; i < _window_size && not _stream.buffer_empty(); i += TCPConfig::MAX_PAYLOAD_SIZE) {
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
+
         TCPSegment section;
-        string section_string = _cache.substr(i, segment_payload_size);
-        section.payload() = _cache.substr(i, segment_payload_size);
+        section.payload() = _stream.read(segment_payload_size);
         section.header().seqno = wrap(_next_seqno, _isn);
-        _next_seqno += section.length_in_sequence_space();
+
         _window_size -= section.length_in_sequence_space();
-        _segments_out.push(section);
+        _send_segment(section);
     }
 }
 
@@ -69,21 +58,33 @@ void TCPSender::fill_window() {
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     _ackno = unwrap(ackno, _isn, _next_seqno);
     _window_size = window_size;
+    while (not _cache_segments.empty() && _cache_segments.front().header().seqno != ackno) {
+        _cache_segments.pop();
+    }
+    _consecutive_retransmissions = 0;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
-void TCPSender::tick(const size_t ms_since_last_tick) { _time_ticker += ms_since_last_tick; }
-
-unsigned int TCPSender::consecutive_retransmissions() const { return {}; }
-
-void TCPSender::send_empty_segment() {
-    // 当窗口值为 1 的时候发送数据
-    TCPSegment signal;
-    signal.header().syn = true;
-    if (_ackno == _isn.raw_value() + 1) {
-        signal.header().ack = true;
+void TCPSender::tick(const size_t ms_since_last_tick) {
+    _time_ticker += ms_since_last_tick;
+    if (_time_ticker - _segment_ticker < _rto_ticker) {
+        return;
     }
-    signal.header().seqno = _isn;
-    _next_seqno += signal.length_in_sequence_space();
-    _segments_out.push(signal);
+    _segment_ticker = _time_ticker;
+    _consecutive_retransmissions++;
+    _rto_ticker *= 2;
+    _segments_out.push(_cache_segments.front());
+}
+
+unsigned int TCPSender::consecutive_retransmissions() const { return _consecutive_retransmissions; }
+
+void TCPSender::send_empty_segment() {}
+
+// My Private Method
+void TCPSender::_send_segment(TCPSegment seg) {
+    _rto_ticker = _initial_retransmission_timeout;
+    _segment_ticker = _time_ticker;
+    _next_seqno += seg.length_in_sequence_space();
+    _cache_segments.push(seg);
+    _segments_out.push(seg);
 }
