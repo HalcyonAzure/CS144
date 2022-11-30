@@ -15,7 +15,7 @@ using namespace std;
 ByteStream::ByteStream(const size_t capacity) : buffer_max_size(capacity), write_count(0), read_count(0) {}
 
 size_t ByteStream::write(const string &data) {
-    size_t cnt = (data.length() > remaining_capacity()) ? remaining_capacity() : data.length();
+    size_t cnt = min(remaining_capacity(), data.length());
     buffer += data.substr(0, cnt);
     write_count += cnt;
     return cnt;
