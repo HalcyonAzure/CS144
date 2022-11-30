@@ -25,30 +25,24 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
-    if (_next_seqno == 0) {
-        TCPSegment signal;
-        if (_next_seqno == 0) {
-            // ackno小于等于，说明连接没建立，每次都要携带syn
-            signal.header().syn = true;
-            signal.header().seqno = _isn;
-            signal.header().ack = _ackno == _isn.raw_value() + 1 ? true : false;
-        }
-        _send_segment(signal);
-        return;
-    }
-
-    if (_stream.buffer_empty()) {
-        return;
-    }
-    
-    for (size_t i = 0; i < _window_size && not _stream.buffer_empty(); i += TCPConfig::MAX_PAYLOAD_SIZE) {
+    for (size_t i = 0; i < _window_size; i += TCPConfig::MAX_PAYLOAD_SIZE) {
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
 
         TCPSegment section;
-        section.payload() = _stream.read(segment_payload_size);
-        section.header().seqno = wrap(_next_seqno, _isn);
-
-        _window_size -= section.length_in_sequence_space();
+        if (_next_seqno == 0) {
+            section.header().syn = true;
+            section.header().seqno = _isn;
+            section.header().ack = (_ackno == _isn.raw_value() + 1) ? true : false;
+        } else if (_stream.eof()) {
+            section.header().fin = _stream.input_ended();
+        } else {
+            if (_stream.buffer_empty()) {
+                return;
+            }
+            section.payload() = _stream.read(segment_payload_size);
+            section.header().seqno = wrap(_next_seqno, _isn);
+            section.header().fin = _stream.input_ended();
+        }
         _send_segment(section);
     }
 }
@@ -84,6 +78,7 @@ void TCPSender::send_empty_segment() {}
 void TCPSender::_send_segment(TCPSegment seg) {
     _rto_ticker = _initial_retransmission_timeout;
     _segment_ticker = _time_ticker;
+    _window_size -= seg.length_in_sequence_space();
     _next_seqno += seg.length_in_sequence_space();
     _cache_segments.push(seg);
     _segments_out.push(seg);
