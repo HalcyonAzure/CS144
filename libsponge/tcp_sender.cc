@@ -25,24 +25,32 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
-    for (size_t i = 0; i < _window_size; i += TCPConfig::MAX_PAYLOAD_SIZE) {
+    if (_next_seqno == 0) {
+        TCPSegment syn_signal;
+        // ackno小于等于，说明连接没建立，每次都要携带syn
+        syn_signal.header().syn = true;
+        syn_signal.header().seqno = _isn;
+        syn_signal.header().ack = (_ackno == _isn.raw_value() + 1);
+        _send_segment(syn_signal);
+        return;
+    }
+
+    if (_stream.eof() && _window_size != 0) {
+        TCPSegment fin_signal;
+        fin_signal.header().fin = true;
+        _send_segment(fin_signal);
+        return;
+    }
+
+    for (size_t i = 0; i < _window_size && not _stream.buffer_empty(); i += TCPConfig::MAX_PAYLOAD_SIZE) {
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
 
         TCPSegment section;
-        if (_next_seqno == 0) {
-            section.header().syn = true;
-            section.header().seqno = _isn;
-            section.header().ack = (_ackno == _isn.raw_value() + 1) ? true : false;
-        } else if (_stream.eof()) {
-            section.header().fin = _stream.input_ended();
-        } else {
-            if (_stream.buffer_empty()) {
-                return;
-            }
-            section.payload() = _stream.read(segment_payload_size);
-            section.header().seqno = wrap(_next_seqno, _isn);
-            section.header().fin = _stream.input_ended();
-        }
+
+        section.payload() = _stream.read(segment_payload_size);
+        section.header().seqno = wrap(_next_seqno, _isn);
+        section.header().fin = _stream.input_ended();
+
         _send_segment(section);
     }
 }
