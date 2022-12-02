@@ -26,18 +26,24 @@ uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
     if (_next_seqno == 0) {
+        // 判断是否发送 ack
+        bool is_ack = _ackno == _isn.raw_value() + 1;
+
         TCPSegment syn_signal;
         // ackno小于等于，说明连接没建立，每次都要携带syn
         syn_signal.header().syn = true;
         syn_signal.header().seqno = _isn;
-        syn_signal.header().ack = (_ackno == _isn.raw_value() + 1);
+        syn_signal.header().ack = is_ack;
+
         _send_segment(syn_signal);
         return;
     }
 
-    if (_stream.eof() && _window_size != 0) {
+    if (_stream.eof() && _window_size != 0 && not _is_fin) {
         TCPSegment fin_signal;
         fin_signal.header().fin = true;
+        fin_signal.header().seqno = wrap(_next_seqno, _isn);
+        _is_fin = true;
         _send_segment(fin_signal);
         return;
     }

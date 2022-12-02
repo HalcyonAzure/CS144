@@ -28,6 +28,9 @@ class TCPSender {
     // window_size
     size_t _window_size = 1;
 
+    // fin flag
+    bool _is_fin = false;
+
     // 超时重传的次数
     size_t _consecutive_retransmissions = 0;
 
