@@ -2,6 +2,7 @@
 
 #include "tcp_config.hh"
 
+#include <iostream>
 #include <random>
 
 // Dummy implementation of a TCP sender
@@ -39,16 +40,14 @@ void TCPSender::fill_window() {
         return;
     }
 
-    if (_stream.eof() && _window_size != 0 && not _is_fin) {
+    if (_stream.input_ended() && _window_size != 0 && _next_seqno == _stream.bytes_written() + 1) {
         TCPSegment fin_signal;
         fin_signal.header().fin = true;
         fin_signal.header().seqno = wrap(_next_seqno, _isn);
-        _is_fin = true;
         _send_segment(fin_signal);
-        return;
     }
 
-    for (size_t i = 0; i < _window_size && not _stream.buffer_empty(); i += TCPConfig::MAX_PAYLOAD_SIZE) {
+    while (_window_size != 0 && not _stream.buffer_empty()) {
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
 
         TCPSegment section;
@@ -70,10 +69,14 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     }
     _ackno = unwrap_ackno;
     _window_size = window_size;
+    _consecutive_retransmissions = 0;
     while (not _cache_segments.empty() && _cache_segments.front().header().seqno != ackno) {
         _cache_segments.pop();
+        _is_front = false;
+        _segment_ticker = _time_ticker;
+        _rto_ticker = _initial_retransmission_timeout;
+        return;
     }
-    _consecutive_retransmissions = 0;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
@@ -93,9 +96,12 @@ unsigned int TCPSender::consecutive_retransmissions() const { return _consecutiv
 void TCPSender::send_empty_segment() {}
 
 // My Private Method
-void TCPSender::_send_segment(TCPSegment seg) {
+void TCPSender::_send_segment(TCPSegment &seg) {
     _rto_ticker = _initial_retransmission_timeout;
-    _segment_ticker = _time_ticker;
+    if (not _is_front) {
+        _segment_ticker = _time_ticker;
+        _is_front = true;
+    }
     _window_size -= seg.length_in_sequence_space();
     _next_seqno += seg.length_in_sequence_space();
     _cache_segments.push(seg);

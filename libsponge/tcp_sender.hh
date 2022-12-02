@@ -28,8 +28,8 @@ class TCPSender {
     // window_size
     size_t _window_size = 1;
 
-    // fin flag
-    bool _is_fin = false;
+    // 正在被RTO记录的TCP段
+    bool _is_front = false;
 
     // 超时重传的次数
     size_t _consecutive_retransmissions = 0;
@@ -53,7 +53,7 @@ class TCPSender {
     uint64_t _next_seqno{0};
 
     // 发送数据段
-    void _send_segment(TCPSegment seg);
+    void _send_segment(TCPSegment &seg);
 
   public:
     //! Initialize a TCPSender
