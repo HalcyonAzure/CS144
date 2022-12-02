@@ -53,7 +53,7 @@ class TCPSender {
     uint64_t _next_seqno{0};
 
     // 发送数据段
-    void _send_segment(TCPSegment &seg);
+    void _send_segment(const TCPSegment &seg);
 
   public:
     //! Initialize a TCPSender

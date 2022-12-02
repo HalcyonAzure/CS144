@@ -26,35 +26,33 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
-    if (_next_seqno == 0) {
-        // 判断是否发送 ack
-        bool is_ack = _ackno == _isn.raw_value() + 1;
-
-        TCPSegment syn_signal;
-        // ackno小于等于，说明连接没建立，每次都要携带syn
-        syn_signal.header().syn = true;
-        syn_signal.header().seqno = _isn;
-        syn_signal.header().ack = is_ack;
-
-        _send_segment(syn_signal);
-        return;
-    }
-
-    if (_stream.input_ended() && _window_size != 0 && _next_seqno == _stream.bytes_written() + 1) {
-        TCPSegment fin_signal;
-        fin_signal.header().fin = true;
-        fin_signal.header().seqno = wrap(_next_seqno, _isn);
-        _send_segment(fin_signal);
-    }
-
-    while (_window_size != 0 && not _stream.buffer_empty()) {
-        size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
-
+    while (_window_size != 0) {
         TCPSegment section;
 
-        section.payload() = _stream.read(segment_payload_size);
         section.header().seqno = wrap(_next_seqno, _isn);
-        section.header().fin = _stream.input_ended();
+
+        bool is_syn = (_next_seqno == 0);
+        bool is_fin = _stream.input_ended();
+
+        if (is_syn) {
+            bool is_syn_acked = is_syn && (_ackno == _isn.raw_value() + 1);
+            section.header().syn = true;
+            section.header().ack = is_syn_acked;
+        }
+
+        if (not is_fin && not is_syn && _stream.buffer_empty()) {
+            return;
+        }
+
+        size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
+        section.payload() = _stream.read(segment_payload_size);
+
+        if (is_fin && _window_size > section.length_in_sequence_space()) {
+            section.header().fin = true;
+            if (_next_seqno == _stream.bytes_written() + 2) {
+                return;
+            }
+        }
 
         _send_segment(section);
     }
@@ -96,7 +94,7 @@ unsigned int TCPSender::consecutive_retransmissions() const { return _consecutiv
 void TCPSender::send_empty_segment() {}
 
 // My Private Method
-void TCPSender::_send_segment(TCPSegment &seg) {
+void TCPSender::_send_segment(const TCPSegment &seg) {
     _rto_ticker = _initial_retransmission_timeout;
     if (not _is_front) {
         _segment_ticker = _time_ticker;
