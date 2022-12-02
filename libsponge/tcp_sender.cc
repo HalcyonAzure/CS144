@@ -48,10 +48,10 @@ void TCPSender::fill_window() {
         section.payload() = _stream.read(segment_payload_size);
 
         if (is_fin && _window_size > section.length_in_sequence_space()) {
-            section.header().fin = true;
-            if (_next_seqno == _stream.bytes_written() + 2) {
+            if (_next_seqno == _stream.bytes_written() + 2 || _window_size <= bytes_in_flight()) {
                 return;
             }
+            section.header().fin = true;
         }
 
         _send_segment(section);
@@ -66,7 +66,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         return;
     }
     _ackno = unwrap_ackno;
-    _window_size = window_size;
+    _window_size = window_size ? window_size : 1;
     _consecutive_retransmissions = 0;
     while (not _cache_segments.empty() && _cache_segments.front().header().seqno != ackno) {
         _cache_segments.pop();
@@ -84,8 +84,10 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         return;
     }
     _segment_ticker = _time_ticker;
-    _consecutive_retransmissions++;
-    _rto_ticker *= 2;
+    if (_window_size != 0 || _next_seqno == 1) {
+        _consecutive_retransmissions++;
+        _rto_ticker *= 2;
+    }
     _segments_out.push(_cache_segments.front());
 }
 
