@@ -76,13 +76,12 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     // 将0视为1
     _window_size = window_size ? window_size : 1;
     _rto_count = 0;
-    while (not _cache.empty() &&
-           _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() == ackno.raw_value()) {
+    if (not _cache.empty() &&
+        _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() == ackno.raw_value()) {
         _cache.pop();
         _rto_trigger = false;
         _sent_tick = _current_tick;
         _rto_tick = _initial_retransmission_timeout;
-        return;
     }
 }
 
