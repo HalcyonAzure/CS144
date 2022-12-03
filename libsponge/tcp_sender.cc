@@ -107,8 +107,8 @@ void TCPSender::send_empty_segment() {}
 // My Private Method
 void TCPSender::_send_segment(const TCPSegment &seg) {
     // 每次发送新报文的时候重置RTO超时最大时间
-    _rto_tick = _initial_retransmission_timeout;
     if (not _rto_trigger) {
+        _rto_tick = _initial_retransmission_timeout;
         _sent_tick = _current_tick;
         _rto_trigger = true;
     }
