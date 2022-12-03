@@ -33,12 +33,14 @@ void TCPSender::fill_window() {
         bool is_syn = (_next_seqno == 0);
         bool is_fin = _stream.input_ended();
 
+        // 判断是否为SYN后的确认报文
         if (is_syn) {
             bool is_syn_acked = is_syn && (_ackno == _isn.raw_value() + 1);
             section.header().syn = true;
             section.header().ack = is_syn_acked;
         }
 
+        // 只有FIN和SYN的报文可以是空字符
         if (not is_fin && not is_syn && _stream.buffer_empty()) {
             return;
         }
@@ -46,7 +48,9 @@ void TCPSender::fill_window() {
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
         section.payload() = _stream.read(segment_payload_size);
 
+        // 如果要发送FIN的话，窗口内至少还要剩余一个字符
         if (is_fin && _window_size > section.length_in_sequence_space()) {
+            // 如果已经发送过FIN，或者当前窗口还在处理FIN之前的数据，没有空余的窗口留给FIN的话则先跳过
             if (_next_seqno == _stream.bytes_written() + 2 || _window_size <= bytes_in_flight()) {
                 return;
             }
@@ -65,54 +69,53 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         return;
     }
     _ackno = unwrap_ackno;
+
+    // 记录是否为空窗口
+    _is_zero = (window_size == 0);
+
+    // 将0视为1
     _window_size = window_size ? window_size : 1;
-    if (window_size == 0) {
-        _is_zero = true;
-    } else {
-        _is_zero = false;
-    }
-    _consecutive_retransmissions = 0;
-    while (not _cache_segments.empty() &&
-           _cache_segments.front().header().seqno.raw_value() + _cache_segments.front().length_in_sequence_space() ==
-               ackno.raw_value()) {
-        _cache_segments.pop();
-        _is_front = false;
-        _segment_ticker = _time_ticker;
-        _rto_ticker = _initial_retransmission_timeout;
+    _rto_count = 0;
+    while (not _cache.empty() &&
+           _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() == ackno.raw_value()) {
+        _cache.pop();
+        _rto_trigger = false;
+        _sent_tick = _current_tick;
+        _rto_tick = _initial_retransmission_timeout;
         return;
     }
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
-    _time_ticker += ms_since_last_tick;
-    if (_time_ticker - _segment_ticker < _rto_ticker) {
+    _current_tick += ms_since_last_tick;
+    if (_current_tick - _sent_tick < _rto_tick || _cache.empty()) {
         return;
     }
-    _segment_ticker = _time_ticker;
+    _sent_tick = _current_tick;
     if (not _is_zero) {
-        _consecutive_retransmissions++;
-        _rto_ticker *= 2;
+        _rto_count++;
+        _rto_tick *= 2;
     }
-    if (_cache_segments.size() == 0) {
-        return;
-    }
-    _segments_out.push(_cache_segments.front());
+    _segments_out.push(_cache.front());
 }
 
-unsigned int TCPSender::consecutive_retransmissions() const { return _consecutive_retransmissions; }
+unsigned int TCPSender::consecutive_retransmissions() const { return _rto_count; }
 
 void TCPSender::send_empty_segment() {}
 
 // My Private Method
 void TCPSender::_send_segment(const TCPSegment &seg) {
-    _rto_ticker = _initial_retransmission_timeout;
-    if (not _is_front) {
-        _segment_ticker = _time_ticker;
-        _is_front = true;
+    // 每次发送新报文的时候重置RTO超时最大时间
+    _rto_tick = _initial_retransmission_timeout;
+    if (not _rto_trigger) {
+        _sent_tick = _current_tick;
+        _rto_trigger = true;
     }
-    _window_size -= seg.length_in_sequence_space();
-    _next_seqno += seg.length_in_sequence_space();
-    _cache_segments.push(seg);
+    // 当前报文需要占用的长度
+    const size_t seg_len = seg.length_in_sequence_space();
+    _window_size -= seg_len;
+    _next_seqno += seg_len;
+    _cache.push(seg);
     _segments_out.push(seg);
 }

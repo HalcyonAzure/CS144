@@ -17,23 +17,23 @@
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
-    // time ticker
-    size_t _time_ticker = 0;
-    size_t _segment_ticker = 0;
-    size_t _rto_ticker = 0;
+    // 计时器
+    size_t _current_tick = 0;
+    size_t _sent_tick = 0;
+    size_t _rto_tick = 0;
 
-    // ackno
+    // 记录确认的_ackno
     size_t _ackno = 0;
 
-    // window_size
+    // 记录窗口大小，并标记是否为空窗口
     size_t _window_size = 1;
     bool _is_zero = false;
 
     // 正在被RTO记录的TCP段
-    bool _is_front = false;
+    bool _rto_trigger = false;
 
     // 超时重传的次数
-    size_t _consecutive_retransmissions = 0;
+    size_t _rto_count = 0;
 
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
@@ -42,7 +42,7 @@ class TCPSender {
     std::queue<TCPSegment> _segments_out{};
 
     // 缓存队列
-    std::queue<TCPSegment> _cache_segments{};
+    std::queue<TCPSegment> _cache{};
 
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
