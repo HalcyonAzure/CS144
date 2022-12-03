@@ -1,6 +1,7 @@
 #include "tcp_sender.hh"
 
 #include "tcp_config.hh"
+#include "tcp_segment.hh"
 
 #include <random>
 
@@ -28,7 +29,7 @@ void TCPSender::fill_window() {
     while (_window_size != 0) {
         TCPSegment section;
 
-        section.header().seqno = wrap(_next_seqno, _isn);
+        section.header().seqno = next_seqno();
 
         bool is_syn = (_next_seqno == 0);
         bool is_fin = _stream.input_ended();
@@ -101,7 +102,11 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 
 unsigned int TCPSender::consecutive_retransmissions() const { return _rto_count; }
 
-void TCPSender::send_empty_segment() {}
+void TCPSender::send_empty_segment() {
+    TCPSegment empty_segment;
+    empty_segment.header().seqno = next_seqno();
+    segments_out().push(empty_segment);
+}
 
 // My Private Method
 void TCPSender::_send_segment(const TCPSegment &seg) {
