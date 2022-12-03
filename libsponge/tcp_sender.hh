@@ -27,6 +27,7 @@ class TCPSender {
 
     // window_size
     size_t _window_size = 1;
+    bool _is_zero = false;
 
     // 正在被RTO记录的TCP段
     bool _is_front = false;

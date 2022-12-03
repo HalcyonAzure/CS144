@@ -2,7 +2,6 @@
 
 #include "tcp_config.hh"
 
-#include <iostream>
 #include <random>
 
 // Dummy implementation of a TCP sender
@@ -62,13 +61,20 @@ void TCPSender::fill_window() {
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     uint64_t unwrap_ackno = unwrap(ackno, _isn, _next_seqno);
-    if (unwrap_ackno > _next_seqno) {
+    if (unwrap_ackno > _next_seqno || unwrap_ackno < _ackno) {
         return;
     }
     _ackno = unwrap_ackno;
     _window_size = window_size ? window_size : 1;
+    if (window_size == 0) {
+        _is_zero = true;
+    } else {
+        _is_zero = false;
+    }
     _consecutive_retransmissions = 0;
-    while (not _cache_segments.empty() && _cache_segments.front().header().seqno != ackno) {
+    while (not _cache_segments.empty() &&
+           _cache_segments.front().header().seqno.raw_value() + _cache_segments.front().length_in_sequence_space() ==
+               ackno.raw_value()) {
         _cache_segments.pop();
         _is_front = false;
         _segment_ticker = _time_ticker;
@@ -84,9 +90,12 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         return;
     }
     _segment_ticker = _time_ticker;
-    if (_window_size != 0 || _next_seqno == 1) {
+    if (not _is_zero) {
         _consecutive_retransmissions++;
         _rto_ticker *= 2;
+    }
+    if (_cache_segments.size() == 0) {
+        return;
     }
     _segments_out.push(_cache_segments.front());
 }

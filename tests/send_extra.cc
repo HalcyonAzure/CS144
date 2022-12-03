@@ -392,8 +392,10 @@ int main() {
 
         {
             TCPConfig cfg;
-            WrappingInt32 isn(rd());
-            const size_t rto = uniform_int_distribution<uint16_t>{30, 10000}(rd);
+            // WrappingInt32 isn(rd());
+            WrappingInt32 isn(1000);
+            // const size_t rto = uniform_int_distribution<uint16_t>{30, 10000}(rd);
+            const size_t rto = 50;
             cfg.fixed_isn = isn;
             cfg.rt_timeout = rto;
 
