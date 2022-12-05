@@ -1,0 +1,20 @@
+buildType:
+  default: Debug
+  description: Build type
+  choices:
+    Debug:
+      short: Debug
+      long: better debugging experience in gdb
+      buildType: Debug
+    Release:
+      short: Release
+      long: full optimizations
+      buildType: Release
+    RelWithASan:
+      short: RelWithASan
+      long: full optimizations plus address and undefined-behavior sanitizers
+      buildType: RelASan
+    DebugASan:
+      short: DebugWithASan
+      long: debug plus sanitizers
+      buildType: DebugASan
