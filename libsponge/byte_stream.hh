@@ -14,16 +14,16 @@ class ByteStream {
     // Your code here -- add private members as necessary.
 
     // buffer capacity
-    const size_t buffer_max_size;
+    const size_t _max_size;
 
     // buffer string
-    std::string buffer = "";
+    std::string _buffer = "";
 
     // input ending flag
-    bool is_input_end = false;
+    bool _is_input_end = false;
 
     // counter
-    size_t write_count, read_count;
+    size_t _write_cnt, _read_cnt;
 
     // Hint: This doesn't need to be a sophisticated data structure at
     // all, but if any of your tests are taking longer than a second,

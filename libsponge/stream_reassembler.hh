@@ -10,13 +10,15 @@
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
-    std::string cache = "";
-    std::string dirty_check = "";
-    size_t write_p = 0;
-    size_t end_p = SIZE_MAX;
+    std::string _cache = "";
+    std::string _dirty_check = "";
+    size_t writing_position = 0;
+    size_t end_position = SIZE_MAX;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
+
+    void _expand_cache(bool need_expand, size_t expanded_size);
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
