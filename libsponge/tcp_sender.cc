@@ -31,27 +31,23 @@ void TCPSender::fill_window() {
 
         section.header().seqno = next_seqno();
 
-        bool is_syn = (_next_seqno == 1);
+        bool is_syn = (_next_seqno == 0);
         bool is_fin = _stream.input_ended();
 
         // 判断是否为SYN后的确认报文
         section.header().syn = is_syn;
 
-        // 只有FIN、SYN和ACK的报文可以是空字符
-        if (not is_fin && not is_syn && _stream.buffer_empty()) {
-            return;
-        }
-
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
         section.payload() = _stream.read(segment_payload_size);
 
-        // 如果要发送FIN的话，窗口内至少还要剩余一个字符
-        if (is_fin && _window_size > section.length_in_sequence_space()) {
-            // 如果已经发送过FIN，或者当前窗口还在处理FIN之前的数据，没有空余的窗口留给FIN的话则先跳过
-            if (_next_seqno == _stream.bytes_written() + 2 || _window_size <= bytes_in_flight()) {
-                return;
-            }
+        // 如果要发送FIN的话，窗口内至少还要剩余一个字符(bytes_in_flight的也会占用窗口)
+        if (is_fin && _window_size > (section.length_in_sequence_space() + bytes_in_flight())) {
             section.header().fin = true;
+        }
+
+        // 空字符报的报文或错误溢出的报文不应该由`TCP Sender`进行发送
+        if (section.length_in_sequence_space() == 0 || _next_seqno == _stream.bytes_written() + 2) {
+            return;
         }
 
         _send_segment(section);
