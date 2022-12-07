@@ -31,17 +31,13 @@ void TCPSender::fill_window() {
 
         section.header().seqno = next_seqno();
 
-        bool is_syn = (_next_seqno == 0);
+        bool is_syn = (_next_seqno == 1);
         bool is_fin = _stream.input_ended();
 
         // 判断是否为SYN后的确认报文
-        if (is_syn) {
-            bool is_syn_acked = is_syn && (_ackno == _isn.raw_value() + 1);
-            section.header().syn = true;
-            section.header().ack = is_syn_acked;
-        }
+        section.header().syn = is_syn;
 
-        // 只有FIN和SYN的报文可以是空字符
+        // 只有FIN、SYN和ACK的报文可以是空字符
         if (not is_fin && not is_syn && _stream.buffer_empty()) {
             return;
         }
