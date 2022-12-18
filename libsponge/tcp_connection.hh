@@ -27,6 +27,7 @@ class TCPConnection {
     // time ticker
     size_t _time_tick = 0;
     size_t _receive_tick = 0;
+    size_t _close_tick = 0;
 
     // push sender's segments to _segments_out
     void _push_out();

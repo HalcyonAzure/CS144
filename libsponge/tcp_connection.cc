@@ -1,10 +1,6 @@
 #include "tcp_connection.hh"
 
-#include "tcp_segment.hh"
-#include "wrapping_integers.hh"
-
 #include <iostream>
-#include <type_traits>
 
 // Dummy implementation of a TCP connection
 
@@ -39,6 +35,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
+    if (_sender.stream_in().input_ended()) {
+        _close_tick = _time_tick;
+    }
+
     // 对数据包进行处理，在这一步中，如果是服务端，会接收客户端发送过来的数据并对数据进行拼装
     // 如果是客户端，则会收到服务器对之前发送报文的确认序号ackno和服务器当前的窗口大小window_size
     _receiver.segment_received(seg);
@@ -68,14 +68,16 @@ size_t TCPConnection::write(const string &data) { return _sender.stream_in().wri
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _time_tick += ms_since_last_tick;
     _sender.tick(ms_since_last_tick);
+    // TODO
+    if (_sender.stream_in().input_ended() && _time_tick - _close_tick >= 10 * _cfg.rt_timeout) {
+        _linger_after_streams_finish = false;
+        _is_active = false;
+    }
 }
 
 void TCPConnection::end_input_stream() {
     // 接收端已经接受了对方传来的所有数据，包括结束符号
     // 同时发送端也已经将自己所有的数据，包括eof发送完毕，同时被对方确认了
-    if (_receiver.stream_out().eof() && _sender.stream_in().eof() && _sender.next_seqno() == _receiver.ackno()) {
-        _is_active = false;
-    }
     _sender.stream_in().end_input();
     _sender.fill_window();
     _push_out();
