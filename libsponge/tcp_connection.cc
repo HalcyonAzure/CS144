@@ -48,6 +48,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _linger_after_streams_finish = false;
     }
 
+    if (_sender.stream_in().eof() && _sender.bytes_in_flight() == 0 && not _linger_after_streams_finish) {
+        _is_active = false;
+    }
+
     // Confirm SYN/FIN
     if (seg.header().ack && (seg.header().syn || seg.header().fin)) {
         _sender.send_empty_segment();
