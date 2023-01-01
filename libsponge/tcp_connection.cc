@@ -25,13 +25,15 @@ size_t TCPConnection::time_since_last_segment_received() const {
 
 void TCPConnection::segment_received(const TCPSegment &seg) {
     _receive_tick = _time_tick;
-    // TODO: RST Segment
+    // RST Segment Received
     if (seg.header().rst) {
         _receiver.stream_out().set_error();
         _sender.stream_in().set_error();
+        _is_active = false;
         return;
     }
 
+    // 我方发送最后一个包含EOF的数据包的时间，用于后面判断是否超过十倍时间然后结束整个Connection
     if (_sender.stream_in().input_ended()) {
         _close_tick = _time_tick;
     }
@@ -39,6 +41,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     _receiver.segment_received(seg);
     _sender.ack_received(seg.header().ackno, seg.header().win);
     _sender.fill_window();
+
+    // If the inbound stream ends before the TCPConnection has reached EOF on its outbound stream,this variable needs
+    // to be set to false.
+    if (_receiver.stream_out().eof() && not _sender.stream_in().eof()) {
+        _linger_after_streams_finish = false;
+    }
 
     // Confirm SYN/FIN
     if (seg.header().ack && (seg.header().syn || seg.header().fin)) {
@@ -55,12 +63,11 @@ size_t TCPConnection::write(const string &data) { return _sender.stream_in().wri
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _time_tick += ms_since_last_tick;
     _sender.tick(ms_since_last_tick);
-    // Clean shutdown
-    if (_sender.stream_in().input_ended() && _time_tick - _close_tick >= 10 * _cfg.rt_timeout) {
-        _linger_after_streams_finish = false;
+    _push_out();
+    // 超过十倍的超时等待时间，代表连接主动结束，双方数据都结束发送
+    if (_time_tick - _close_tick >= _linger_time) {
         _is_active = false;
     }
-    _push_out();
 }
 
 void TCPConnection::end_input_stream() {
@@ -72,7 +79,7 @@ void TCPConnection::end_input_stream() {
 
 void TCPConnection::connect() {
     _sender.fill_window();
-    _sender.segments_out().swap(_segments_out);
+    _push_out();
 }
 
 TCPConnection::~TCPConnection() {

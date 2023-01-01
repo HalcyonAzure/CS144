@@ -34,6 +34,9 @@ class TCPConnection {
     // push sender's segments to _segments_out
     void _push_out();
 
+    // const data
+    const size_t _linger_time = 10 * _cfg.rt_timeout;
+
   public:
     //! \name "Input" interface for the writer
     //!@{
