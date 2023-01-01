@@ -48,11 +48,14 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _linger_after_streams_finish = false;
     }
 
+    // At any point where prerequisites #1 through #3 are satisfied, the connection is “done” (and
+    // active() should return false) if linger after streams finish is false.
     if (_sender.stream_in().eof() && _sender.bytes_in_flight() == 0 && not _linger_after_streams_finish) {
         _is_active = false;
     }
 
-    // Confirm SYN/FIN
+    // 对SYN或者FIN进行确认。（因为fill_window不处理不包含字符的空报文，所以需要
+    // 单独写一个判断进行发送空报文）
     if (seg.header().ack && (seg.header().syn || seg.header().fin)) {
         _sender.send_empty_segment();
     }
