@@ -55,8 +55,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     }
 
     // 对SYN或者FIN进行确认。（因为fill_window不处理不包含字符的空报文，所以需要
-    // 单独写一个判断进行发送空报文）
-    if (seg.header().ack && (seg.header().syn || seg.header().fin)) {
+    // 单独写一个判断进行发送空报文）需要发送空报文的时机：接收到了SYN/FIN，接受到正确的信息，但是此时并没
+    // 有需要返回的东西，或者接受到了错误的信号，返回一个空包来判断存活
+    // 需要空包的前提条件都是fill_window的过程中没有发送任何内容
+    if (seg.header().ack && (seg.header().fin || seg.header().syn || seg.header().seqno != _receiver.ackno())) {
         _sender.send_empty_segment();
     }
     _push_out();
