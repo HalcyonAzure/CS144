@@ -25,7 +25,6 @@ size_t TCPConnection::time_since_last_segment_received() const {
 
 void TCPConnection::segment_received(const TCPSegment &seg) {
     _receive_tick = _time_tick;
-    // RST Segment Received
     if (seg.header().rst) {
         _receiver.stream_out().set_error();
         _sender.stream_in().set_error();
@@ -33,7 +32,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    if (_sender.next_seqno_absolute() == 0 || _receiver.ackno()->raw_value() == 0) {
+    if (not seg.header().syn && (_sender.next_seqno_absolute() == 0 || not _receiver.ackno().has_value())) {
         return;
     }
 
@@ -46,22 +45,14 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     _sender.ack_received(seg.header().ackno, seg.header().win);
     _sender.fill_window();
 
-    // If the inbound stream ends before the TCPConnection has reached EOF on its outbound stream,this variable needs
-    // to be set to false.
     if (_receiver.stream_out().eof() && not _sender.stream_in().eof()) {
         _linger_after_streams_finish = false;
     }
 
-    // At any point where prerequisites #1 through #3 are satisfied, the connection is “done” (and
-    // active() should return false) if linger after streams finish is false.
     if (_sender.stream_in().eof() && _sender.bytes_in_flight() == 0 && not _linger_after_streams_finish) {
         _is_active = false;
     }
 
-    // 对SYN或者FIN进行确认。（因为fill_window不处理不包含字符的空报文，所以需要
-    // 单独写一个判断进行发送空报文）需要发送空报文的时机：接收到了SYN/FIN，接受到正确的信息，但是此时并没
-    // 有需要返回的东西，或者接受到了错误的信号，返回一个空包来判断存活
-    // 需要空包的前提条件都是fill_window的过程中没有发送任何内容
     if (seg.header().ack && (seg.header().fin || seg.header().syn || seg.header().seqno != _receiver.ackno())) {
         _sender.send_empty_segment();
     }
