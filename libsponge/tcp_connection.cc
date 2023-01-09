@@ -33,6 +33,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
+    if (_sender.next_seqno_absolute() == 0 || _receiver.ackno()->raw_value() == 0) {
+        return;
+    }
+
     // 我方发送最后一个包含EOF的数据包的时间，用于后面判断是否超过十倍时间然后结束整个Connection
     if (_sender.stream_in().input_ended()) {
         _close_tick = _time_tick;
@@ -95,8 +99,9 @@ TCPConnection::~TCPConnection() {
     try {
         if (active()) {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-
-            // Your code here: need to send a RST segment to the peer
+            _sender.send_empty_segment();
+            _sender.segments_out().front().header().rst = true;
+            _segments_out.swap(_sender.segments_out());
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
