@@ -63,7 +63,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
 bool TCPConnection::active() const { return _is_active; }
 
-size_t TCPConnection::write(const string &data) { return _sender.stream_in().write(data); }
+size_t TCPConnection::write(const string &data) {
+    size_t written_cnt = _sender.stream_in().write(data);
+    _sender.fill_window();
+    _push_out();
+    return written_cnt;
+}
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) {
@@ -105,9 +110,13 @@ void TCPConnection::_push_out() {
     if (_sender.segments_out().empty()) {
         return;
     }
-    if (_receiver.ackno().has_value()) {
-        _sender.segments_out().front().header().ack = true;
-        _sender.segments_out().front().header().ackno = _receiver.ackno().value();
+    while (not _sender.segments_out().empty()) {
+        if (_receiver.ackno().has_value()) {
+            _sender.segments_out().front().header().ack = true;
+            _sender.segments_out().front().header().ackno = _receiver.ackno().value();
+            _sender.segments_out().front().header().win = _receiver.window_size();
+        }
+        _segments_out.push(_sender.segments_out().front());
+        _sender.segments_out().pop();
     }
-    _segments_out.swap(_sender.segments_out());
 }
