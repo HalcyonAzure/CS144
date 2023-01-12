@@ -89,7 +89,9 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         _rto_count++;
         _rto_tick *= 2;
     }
-    _segments_out.push(_cache.front());
+    if (_rto_count <= TCPConfig::MAX_RETX_ATTEMPTS) {
+        _segments_out.push(_cache.front());
+    }
 }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return _rto_count; }

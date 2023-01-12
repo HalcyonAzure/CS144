@@ -32,14 +32,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    // 如果第一个接受到的报文不是SYN握手则短路
     if (not seg.header().syn && (_sender.next_seqno_absolute() == 0 || not _receiver.ackno().has_value())) {
         return;
-    }
-
-    // 我方发送最后一个包含EOF的数据包的时间，用于后面判断是否超过十倍时间然后结束整个Connection
-    if (_sender.stream_in().input_ended()) {
-        _close_tick = _time_tick;
     }
 
     _receiver.segment_received(seg);
@@ -50,7 +44,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _linger_after_streams_finish = false;
     }
 
-    if (_sender.stream_in().eof() && _sender.bytes_in_flight() == 0 && not _linger_after_streams_finish) {
+    if (_sender.stream_in().eof() && bytes_in_flight() == 0 && not _linger_after_streams_finish) {
         _is_active = false;
     }
 
@@ -74,11 +68,15 @@ size_t TCPConnection::write(const string &data) {
 void TCPConnection::tick(const size_t ms_since_last_tick) {
     _time_tick += ms_since_last_tick;
     _sender.tick(ms_since_last_tick);
-    _push_out();
+    if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
+        _error_with_rst();
+        return;
+    }
     // 超过十倍的超时等待时间，代表连接主动结束，双方数据都结束发送
-    if (_time_tick - _close_tick >= _linger_time) {
+    if (time_since_last_segment_received() >= _linger_time && _sender.stream_in().eof()) {
         _is_active = false;
     }
+    _push_out();
 }
 
 void TCPConnection::end_input_stream() {
@@ -97,9 +95,7 @@ TCPConnection::~TCPConnection() {
     try {
         if (active()) {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-            _sender.send_empty_segment();
-            _sender.segments_out().front().header().rst = true;
-            _segments_out.swap(_sender.segments_out());
+            _error_with_rst();
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
@@ -119,4 +115,14 @@ void TCPConnection::_push_out() {
         _segments_out.push(_sender.segments_out().front());
         _sender.segments_out().pop();
     }
+}
+
+void TCPConnection::_error_with_rst() {
+    _receiver.stream_out().set_error();
+    _sender.stream_in().set_error();
+    _is_active = false;
+    _sender.send_empty_segment();
+    _sender.segments_out().front().header().rst = true;
+    _segments_out.push(_sender.segments_out().front());
+    _sender.segments_out().pop();
 }

@@ -26,13 +26,15 @@ class TCPConnection {
 
     // time ticker
     size_t _time_tick = 0;
-    // size_t _receive_tick = 0;
-    size_t _close_tick = 0;
     // received ticker
     size_t _receive_tick = 0;
 
     // push sender's segments to _segments_out
     void _push_out();
+
+    // error occured
+
+    void _error_with_rst();
 
     // const data
     const size_t _linger_time = 10 * _cfg.rt_timeout;
