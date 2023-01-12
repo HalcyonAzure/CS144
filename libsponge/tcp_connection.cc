@@ -32,6 +32,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
+    // 如果第一个接受到的报文不是SYN握手则短路
     if (not seg.header().syn && (_sender.next_seqno_absolute() == 0 || not _receiver.ackno().has_value())) {
         return;
     }
@@ -53,7 +54,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         _is_active = false;
     }
 
-    if (seg.header().ack && (seg.header().fin || seg.header().syn || seg.header().seqno != _receiver.ackno())) {
+    if (seg.header().fin || seg.header().syn || seg.header().seqno != _receiver.ackno()) {
         _sender.send_empty_segment();
     }
     _push_out();
