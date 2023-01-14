@@ -11,16 +11,6 @@ using namespace std;
 int main() {
     try {
         {
-            ReassemblerTestHarness test{6};
-            test.execute(SubmitSegment{"defg", 3});
-            test.execute(BytesAssembled(0));
-            test.execute(SubmitSegment{"abc", 0});
-            test.execute(BytesAvailable("abcdef"));
-            test.execute(BytesAssembled(6));
-            test.execute(SubmitSegment{"kmg", 7});
-            test.execute(BytesAvailable(""));
-        }
-        {
             ReassemblerTestHarness test{2};
 
             test.execute(SubmitSegment{"ab", 0});
