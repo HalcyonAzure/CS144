@@ -10,10 +10,14 @@
 //! possibly overlapping) into an in-order byte stream.
 class StreamReassembler {
   private:
-    std::string _cache = "";
-    std::string _dirty_check = "";
-    size_t writing_position = 0;
-    size_t end_position = SIZE_MAX;
+    // 用于存放缓存
+    std::string cache{};
+    // 用于标记缓存对应字节上是否写入内容
+    std::string dirty_check{};
+    // 标记写入指针
+    size_t write_p = 0;
+    // 标记EOF位
+    size_t end_p = SIZE_MAX;
 
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
