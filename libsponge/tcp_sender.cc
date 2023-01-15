@@ -57,7 +57,7 @@ void TCPSender::fill_window() {
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     uint64_t unwrap_ackno = unwrap(ackno, _isn, _next_seqno);
-    if (unwrap_ackno > _next_seqno) {
+    if (unwrap_ackno > _next_seqno || unwrap_ackno < _ackno) {
         return;
     }
     _ackno = unwrap_ackno;
