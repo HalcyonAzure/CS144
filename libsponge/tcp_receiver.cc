@@ -21,7 +21,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 
     // checkpoint的位置就是已经写入完成的字符的数量
     // In your TCP implementation, you’ll use the index of the last reassembled byte as the checkpoint.
-    uint64_t checkpoint = _reassembler.stream_out().bytes_written();
+    const uint64_t checkpoint = _reassembler.stream_out().bytes_written();
 
     // 将内容写入reassembler，判断!=0的原因是为了忽略那些小于等于seq的错误TCP段
     uint64_t stream_index = unwrap(seg.header().seqno, _isn, checkpoint);
