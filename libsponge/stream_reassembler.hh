@@ -3,26 +3,22 @@
 
 #include "byte_stream.hh"
 
-#include <cstdint>
-#include <string>
-
 //! \brief A class that assembles a series of excerpts from a byte stream (possibly out of order,
 //! possibly overlapping) into an in-order byte stream.
+using namespace std;
 class StreamReassembler {
   private:
+    // Your code here -- add private members as necessary.
     // 用于存放缓存
-    std::string cache{};
+    std::string cache;
     // 用于标记缓存对应字节上是否写入内容
-    std::string dirty_check{};
+    std::string dirty_check;
     // 标记写入指针
-    size_t write_p = 0;
+    size_t write_p;
     // 标记EOF位
-    size_t end_p = SIZE_MAX;
-
+    size_t end_p;
     ByteStream _output;  //!< The reassembled in-order byte stream
     size_t _capacity;    //!< The maximum number of bytes
-
-    void _expand_cache(bool need_expand, size_t expanded_size);
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.
