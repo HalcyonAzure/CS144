@@ -101,7 +101,6 @@ if [ "$MODE" = "check" ]; then
     echo -e "[$0] Bringing up tunnels ${INTFS[@]}:"
 fi
 
-cat
 # sudo if necessary
 check_sudo "$@"
 
