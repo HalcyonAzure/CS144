@@ -25,6 +25,10 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     bool eof_flag = false;
     size_t expand_size = index + data.length();
 
+    if (index > write_p + _output.remaining_capacity()) {
+        return;
+    }
+
     // 取 index + data.length() 和
     // write_p + _output.remaining_capacity() 中更小的那个作为扩容后的大小
     if (index + data.length() <= write_p + _output.remaining_capacity()) {
