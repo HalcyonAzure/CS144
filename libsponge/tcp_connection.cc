@@ -35,15 +35,16 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    // LISTEN 情况下建立链接
-    if (seg.header().syn && _sender.next_seqno_absolute() == 0) {
-        _sender.fill_window();
+    // 如果TCP连接处于LISTEN状态，只接受SYN报文
+    if (not _receiver.ackno().has_value()) {
+        if (seg.header().syn) {
+            // 收到SYN报文时，建立连接
+            _sender.fill_window();
+        } else {
+            // 收到的报文不是SYN报文，直接返回
+            return;
+        }
     }
-
-    // 对于不携带SYN的报文，接受先要先判断连接是否已经建立好
-    // if (not seg.header().syn && (_sender.next_seqno_absolute() == 0 || not _receiver.ackno().has_value())) {
-    //     return;
-    // }
 
     // 接受这个报文
     _receiver.segment_received(seg);
