@@ -74,12 +74,23 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     _window_size = window_size ? window_size : 1;
 
     _rto_count = 0;  // 到达确认报文，重传次数清零
-    if (not _cache.empty() &&
-        _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() == ackno.raw_value()) {
+
+    // 如果当前缓冲区内有需要发送的报文，并且当前缓冲区内的第一个报文的序号等于接收到的确认序号，说明这个报文已经被对方确认了
+    // if (not _cache.empty() &&
+    //     _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() == ackno.raw_value()) {
+    //     _cache.pop();
+    //     _has_segment_flight = false;
+    //     _sent_tick = _current_tick;
+    //     _rto_timeout = _initial_retransmission_timeout;
+    // }
+
+    // 当缓冲区内的报文已经被ackno确认，则将已经确认的报文进行丢弃
+    while (not _cache.empty() &&
+           _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() <= ackno.raw_value()) {
         _cache.pop();
-        _rto_trigger = false;
+        _has_segment_flight = false;
         _sent_tick = _current_tick;
-        _rto_tick = _initial_retransmission_timeout;
+        _rto_timeout = _initial_retransmission_timeout;
     }
 
     fill_window();
@@ -88,16 +99,22 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
     _current_tick += ms_since_last_tick;
-    if (_current_tick - _sent_tick < _rto_tick || _cache.empty()) {
+
+    // 如果没有超时，或者当前缓冲区内没有需要发送的包
+    if (_current_tick - _sent_tick < _rto_timeout || _cache.empty()) {
         return;
     }
+
+    // 更新时间
     _sent_tick = _current_tick;
 
-    // 如果上一个收到的报文中，窗口大小不是零
+    // 如果上一个收到的报文中，窗口大小不是零，但是依旧超时，说明是网络堵塞
     if (not _is_zero) {
         _rto_count++;
-        _rto_tick *= 2;
+        _rto_timeout *= 2;
     }
+
+    // 重传次数小于最大重传次数，就重传
     if (_rto_count <= TCPConfig::MAX_RETX_ATTEMPTS) {
         _segments_out.push(_cache.front());
     }
@@ -113,16 +130,16 @@ void TCPSender::send_empty_segment() {
 
 // My Private Method
 void TCPSender::_send_segment(const TCPSegment &seg) {
-    // 每次发送新报文的时候重置RTO超时最大时间
-    if (not _rto_trigger) {
-        _rto_tick = _initial_retransmission_timeout;
-        _sent_tick = _current_tick;
-        _rto_trigger = true;
-    }
     // 当前报文需要占用的长度
     const size_t seg_len = seg.length_in_sequence_space();
     _window_size -= seg_len;
     _next_seqno += seg_len;
     _cache.push(seg);
     _segments_out.push(seg);
+    // 为新发送的报文开启超时重传计时器
+    if (not _has_segment_flight) {
+        _rto_timeout = _initial_retransmission_timeout;
+        _sent_tick = _current_tick;
+        _has_segment_flight = true;
+    }
 }

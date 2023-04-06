@@ -20,7 +20,7 @@ class TCPSender {
     // 计时器
     size_t _current_tick = 0;
     size_t _sent_tick = 0;
-    size_t _rto_tick = 0;
+    size_t _rto_timeout = 0;
 
     // 记录确认的_ackno
     size_t _ackno = 0;
@@ -29,8 +29,8 @@ class TCPSender {
     size_t _window_size = 1;
     bool _is_zero = false;
 
-    // 正在被RTO记录的TCP段
-    bool _rto_trigger = false;
+    // 是否存在没有被记录的已经发送但是未确认的数据段
+    bool _has_segment_flight = false;
 
     // 超时重传的次数
     size_t _rto_count = 0;
