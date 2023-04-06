@@ -20,11 +20,14 @@ size_t TCPConnection::unassembled_bytes() const { return _receiver.unassembled_b
 
 size_t TCPConnection::time_since_last_segment_received() const {
     // TODO
-    return _time_tick - _receive_tick;
+    return _time_since_last_segment_received;
 }
 
 void TCPConnection::segment_received(const TCPSegment &seg) {
-    _receive_tick = _time_tick;
+    // 首先无论如何，刷新收到报文的时间
+    _time_since_last_segment_received = 0;
+
+    // 然后先检查这个报文是否出错，如果出错则直接返回
     if (seg.header().rst) {
         _receiver.stream_out().set_error();
         _sender.stream_in().set_error();
@@ -32,18 +35,30 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    if (not seg.header().syn && (_sender.next_seqno_absolute() == 0 || not _receiver.ackno().has_value())) {
-        return;
+    // LISTEN 情况下建立链接
+    if (seg.header().syn && _sender.next_seqno_absolute() == 0) {
+        _sender.fill_window();
     }
 
-    _receiver.segment_received(seg);
-    _sender.ack_received(seg.header().ackno, seg.header().win);
-    _sender.fill_window();
+    // 对于不携带SYN的报文，接受先要先判断连接是否已经建立好
+    // if (not seg.header().syn && (_sender.next_seqno_absolute() == 0 || not _receiver.ackno().has_value())) {
+    //     return;
+    // }
 
+    // 接受这个报文
+    _receiver.segment_received(seg);
+    // 对这个报文的ACK确认进行更新，用于下一次更新的确认
+    _sender.ack_received(seg.header().ackno, seg.header().win);
+
+    // 接收到正确的EOF报文，代表对方发送过来的数据流已经结束了，但是自己还有数据要发送
     if (_receiver.stream_out().eof() && not _sender.stream_in().eof()) {
+        //
         _linger_after_streams_finish = false;
     }
 
+    // _linger_after_streams_finish是false说明对方发送给我们的数据流已经全部被接受了
+    // 此时有_sender的eof和bytes_in_flight都为0，说明自己的数据流也已经全部发送完毕
+    // 因此可以关闭连接了
     if (_sender.stream_in().eof() && bytes_in_flight() == 0 && not _linger_after_streams_finish) {
         _is_active = false;
     }
@@ -52,12 +67,14 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         (seg.header().fin || seg.header().syn || seg.header().seqno != _receiver.ackno())) {
         _sender.send_empty_segment();
     }
+    // 填装需要发送的报文
     _push_out();
 }
 
 bool TCPConnection::active() const { return _is_active; }
 
 size_t TCPConnection::write(const string &data) {
+    // Send Data Segment
     size_t written_cnt = _sender.stream_in().write(data);
     _sender.fill_window();
     _push_out();
@@ -66,13 +83,13 @@ size_t TCPConnection::write(const string &data) {
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) {
-    _time_tick += ms_since_last_tick;
+    _time_since_last_segment_received += ms_since_last_tick;
     _sender.tick(ms_since_last_tick);
     if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
         _error_with_rst();
         return;
     }
-    // 超过十倍的超时等待时间，代表连接主动结束，双方数据都结束发送
+    // 超过十倍的超时等待时间，需要发送的数据包和ack已经结束，可以关闭连接了
     if (time_since_last_segment_received() >= _linger_time && _sender.stream_in().eof()) {
         _is_active = false;
     }
@@ -87,6 +104,7 @@ void TCPConnection::end_input_stream() {
 }
 
 void TCPConnection::connect() {
+    // Send SYN Segment
     _sender.fill_window();
     _push_out();
 }
@@ -103,9 +121,6 @@ TCPConnection::~TCPConnection() {
 }
 
 void TCPConnection::_push_out() {
-    if (_sender.segments_out().empty()) {
-        return;
-    }
     while (not _sender.segments_out().empty()) {
         if (_receiver.ackno().has_value()) {
             _sender.segments_out().front().header().ack = true;

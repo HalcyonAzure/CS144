@@ -25,15 +25,12 @@ class TCPConnection {
     bool _is_active{true};
 
     // time ticker
-    size_t _time_tick = 0;
-    // received ticker
-    size_t _receive_tick = 0;
+    size_t _time_since_last_segment_received = 0;
 
     // push sender's segments to _segments_out
     void _push_out();
 
     // error occured
-
     void _error_with_rst();
 
     // const data

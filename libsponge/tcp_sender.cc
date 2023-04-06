@@ -28,18 +28,21 @@ void TCPSender::fill_window() {
     while (_window_size != 0) {
         TCPSegment section;
 
+        // 发送的数据包的序号是将要写入的下一个序号
         section.header().seqno = next_seqno();
 
+        // _next_seqno == 0 代表还没有开始发送数据，此时需要发送SYN报文
         bool is_syn = (_next_seqno == 0);
         bool is_fin = _stream.input_ended();
 
-        // 判断是否为SYN后的确认报文
+        // 判断是否为SYN报文
         section.header().syn = is_syn;
 
+        // 将数据进行封装
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
         section.payload() = _stream.read(segment_payload_size);
 
-        // 如果要发送FIN的话，窗口内至少还要剩余一个字符(bytes_in_flight的也会占用窗口)
+        // 空闲窗口中至少要留有一位序号的位置才能将当前数据包添加FIN(bytes_in_flight的也会占用窗口)
         if (is_fin && _window_size > (section.length_in_sequence_space() + bytes_in_flight())) {
             section.header().fin = true;
         }
@@ -55,17 +58,19 @@ void TCPSender::fill_window() {
 
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
+//! \details 用于确认接收到的报文，更新发送端的状态
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
-    uint64_t unwrap_ackno = unwrap(ackno, _isn, _next_seqno);
-    if (unwrap_ackno > _next_seqno || unwrap_ackno < _ackno) {
+    uint64_t abs_ackno = unwrap(ackno, _isn, _next_seqno);
+    // 如果接收到对方发送的确认序号大于自己的下一个序号或者小于自己的已经被确认序号，说明接收到的确认序号是错误的
+    if (abs_ackno > _next_seqno || abs_ackno < _ackno) {
         return;
     }
-    _ackno = unwrap_ackno;
+    _ackno = abs_ackno;
 
-    // 记录是否为空窗口
+    // 记录对方的窗口是否满了
     _is_zero = (window_size == 0);
 
-    // 将0视为1
+    // 如果对方的窗口大小是1，说明对方的窗口已经满了，需要等待对方的窗口释放后再发送数据
     _window_size = window_size ? window_size : 1;
 
     _rto_count = 0;  // 到达确认报文，重传次数清零
@@ -85,6 +90,8 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         return;
     }
     _sent_tick = _current_tick;
+
+    // 如果上一个收到的报文中，窗口大小不是零
     if (not _is_zero) {
         _rto_count++;
         _rto_tick *= 2;
