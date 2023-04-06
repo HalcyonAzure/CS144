@@ -44,7 +44,7 @@ void TCPSender::fill_window() {
             section.header().fin = true;
         }
 
-        // 空字符报的报文或错误溢出的报文不应该由`TCP Sender`进行发送
+        // 如果这个报文啥都没有，或者FIN报文已经被对方确认了，就不要发送了，代表连接全部结束了
         if (section.length_in_sequence_space() == 0 || _next_seqno == _stream.bytes_written() + 2) {
             return;
         }
@@ -67,7 +67,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
     // 将0视为1
     _window_size = window_size ? window_size : 1;
-    _rto_count = 0;
+
+    _rto_count = 0;  // 到达确认报文，重传次数清零
     if (not _cache.empty() &&
         _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() == ackno.raw_value()) {
         _cache.pop();
