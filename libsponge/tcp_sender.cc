@@ -81,6 +81,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         _sent_tick = _current_tick;
         _rto_tick = _initial_retransmission_timeout;
     }
+
+    fill_window();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
