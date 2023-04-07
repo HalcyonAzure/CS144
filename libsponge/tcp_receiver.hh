@@ -6,7 +6,6 @@
 #include "tcp_segment.hh"
 #include "wrapping_integers.hh"
 
-#include <cstdint>
 #include <optional>
 
 //! \brief The "receiver" part of a TCP implementation.

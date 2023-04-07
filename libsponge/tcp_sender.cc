@@ -2,7 +2,6 @@
 
 #include "tcp_config.hh"
 
-#include <iostream>
 #include <random>
 
 // Dummy implementation of a TCP sender
