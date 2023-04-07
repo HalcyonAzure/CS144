@@ -26,7 +26,9 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _ackno; }
 
 void TCPSender::fill_window() {
-    while (_window_size != 0) {
+    size_t fill_space = _window_size ? _window_size : 1;
+    fill_space -= bytes_in_flight();
+    while (fill_space > 0) {
         TCPSegment section;
 
         // 发送的数据包的序号是将要写入的下一个序号
@@ -40,11 +42,11 @@ void TCPSender::fill_window() {
         section.header().syn = is_syn;
 
         // 将数据进行封装
-        size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_size);
+        size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, fill_space);
         section.payload() = _stream.read(segment_payload_size);
 
         // 空闲窗口中至少要留有一位序号的位置才能将当前数据包添加FIN(bytes_in_flight的也会占用窗口)
-        if (is_fin && _window_size > (section.length_in_sequence_space() + bytes_in_flight())) {
+        if (is_fin && fill_space > section.length_in_sequence_space()) {
             section.header().fin = true;
         }
 
@@ -52,6 +54,8 @@ void TCPSender::fill_window() {
         if (section.length_in_sequence_space() == 0 || _next_seqno == _stream.bytes_written() + 2) {
             return;
         }
+
+        fill_space -= section.length_in_sequence_space();
 
         _send_segment(section);
     }
@@ -68,11 +72,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     }
     _ackno = abs_ackno;
 
-    // 记录对方的窗口是否满了
-    _is_zero = (window_size == 0);
-
-    // 如果对方的窗口大小是1，说明对方的窗口已经满了，需要等待对方的窗口释放后再发送数据
-    _window_size = window_size ? window_size : 1;
+    // 记录窗口大小
+    _window_size = window_size;
 
     // 用于判断是否重置计时器
     bool has_reset = false;
@@ -93,9 +94,10 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         _rto_timer.stop();
     }
 
-    // 之所以在这里放一个fill_window，是因为在之前的fill_window里面可能因为
-    // 接受方的window满了，导致没有发送数据，所以在这里需要再次将之前没有发送的数据发送过去
-    fill_window();
+    // 如果剩余的窗口还有空间，就填入内容
+    if (_window_size > bytes_in_flight()) {
+        fill_window();
+    }
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
@@ -108,7 +110,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         return;
     }
     // 如果上一个收到的报文中，窗口大小不是零，但是依旧超时，说明是网络堵塞，执行慢启动
-    if (not _is_zero) {
+    if (_window_size != 0) {
         _rto_timer.slow_start();
     }
 
@@ -132,7 +134,6 @@ void TCPSender::send_empty_segment() {
 void TCPSender::_send_segment(const TCPSegment &seg) {
     // 当前报文需要占用的长度
     const size_t seg_len = seg.length_in_sequence_space();
-    _window_size -= seg_len;
     _next_seqno += seg_len;
     _cache.push(seg);
     _segments_out.push(seg);

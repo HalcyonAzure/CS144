@@ -69,7 +69,6 @@ class TCPSender {
 
     // 记录窗口大小，并标记是否为空窗口
     size_t _window_size = 1;
-    bool _is_zero = false;
 
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;
