@@ -11,16 +11,58 @@
 
 //! \brief The "sender" part of a TCP implementation.
 
+// RTO Timer
+class TCPTimer {
+  private:
+    size_t _tick_passed = 0;      // 记录实时的时间戳
+    size_t _rto_timeout = 0;      // 记录超过多久时间没有收到ACK就重传
+    unsigned int _rto_count = 0;  // 记录重传的次数
+
+    bool _is_running{false};  // 记录计时器是否启动
+
+  public:
+    // 重置计时器
+    void reset(const uint16_t retx_timeout) {
+        _rto_count = 0;
+        _rto_timeout = retx_timeout;
+        _tick_passed = 0;
+    }
+
+    // 启动计时器
+    void run() { _is_running = true; }
+
+    // 暂停计时器
+    void stop() { _is_running = false; }
+
+    // 计时器是否启动
+    bool is_running() const { return _is_running; }
+
+    // 重传次数
+    unsigned int rto_count() const { return _rto_count; }
+
+    // 慢启动
+    void slow_start() {
+        _rto_count++;
+        _rto_timeout *= 2;
+    }
+
+    // 更新当前时间
+    void update(const size_t ms_since_last_tick) { _tick_passed += ms_since_last_tick; }
+
+    // 检测是否超时
+    bool is_timeout() const { return _is_running && _tick_passed >= _rto_timeout; }
+
+    // 重新计时
+    void restart() { _tick_passed = 0; }
+};
+
 //! Accepts a ByteStream, divides it up into segments and sends the
 //! segments, keeps track of which segments are still in-flight,
 //! maintains the Retransmission Timer, and retransmits in-flight
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
-    // 计时器
-    size_t _current_tick = 0;
-    size_t _sent_tick = 0;
-    size_t _rto_timeout = 0;
+    TCPTimer _rto_timer{};
 
     // 记录确认的_ackno
     size_t _ackno = 0;
@@ -28,12 +70,6 @@ class TCPSender {
     // 记录窗口大小，并标记是否为空窗口
     size_t _window_size = 1;
     bool _is_zero = false;
-
-    // 是否存在没有被记录的已经发送但是未确认的数据段
-    bool _has_segment_flight = false;
-
-    // 超时重传的次数
-    size_t _rto_count = 0;
 
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;

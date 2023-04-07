@@ -63,7 +63,7 @@ void TCPSender::fill_window() {
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     uint64_t abs_ackno = unwrap(ackno, _isn, _next_seqno);
     // 如果接收到对方发送的确认序号大于自己的下一个序号或者小于自己的已经被确认序号，说明接收到的确认序号是错误的
-    if (abs_ackno > _next_seqno || abs_ackno < _ackno) {
+    if (abs_ackno < _ackno || abs_ackno > _next_seqno) {
         return;
     }
     _ackno = abs_ackno;
@@ -74,48 +74,53 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     // 如果对方的窗口大小是1，说明对方的窗口已经满了，需要等待对方的窗口释放后再发送数据
     _window_size = window_size ? window_size : 1;
 
-    _rto_count = 0;  // 到达确认报文，重传次数清零
+    // 用于判断是否重置计时器
+    bool has_reset = false;
 
     // 当缓冲区内的报文已经被ackno确认，则将已经确认的报文进行丢弃
     while (not _cache.empty() &&
            _cache.front().header().seqno.raw_value() + _cache.front().length_in_sequence_space() <= ackno.raw_value()) {
-        _sent_tick = _current_tick;
-        _rto_timeout = _initial_retransmission_timeout;
-        _cache.pop();
-        if (_cache.empty()) {
-            _has_segment_flight = false;
+        if (not has_reset) {
+            // 有效的确认报文到达，重置计时器
+            _rto_timer.reset(_initial_retransmission_timeout);
+            has_reset = true;
         }
+        _cache.pop();
     }
 
+    if (_cache.empty()) {
+        // 所有数据包都被确认了，所以暂停计时器
+        _rto_timer.stop();
+    }
+
+    // 之所以在这里放一个fill_window，是因为在之前的fill_window里面可能因为
+    // 接受方的window满了，导致没有发送数据，所以在这里需要再次将之前没有发送的数据发送过去
     fill_window();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
     // 更新当前时间
-    _current_tick += ms_since_last_tick;
+    _rto_timer.update(ms_since_last_tick);
 
     // 检测是否超时
-    if (_current_tick - _sent_tick < _rto_timeout || _cache.empty()) {
+    if ((not _rto_timer.is_timeout())) {
         return;
     }
-
-    // 更新时间
-    _sent_tick = _current_tick;
-
-    // 如果上一个收到的报文中，窗口大小不是零，但是依旧超时，说明是网络堵塞
+    // 如果上一个收到的报文中，窗口大小不是零，但是依旧超时，说明是网络堵塞，执行慢启动
     if (not _is_zero) {
-        _rto_count++;
-        _rto_timeout *= 2;
+        _rto_timer.slow_start();
     }
 
     // 重传次数小于最大重传次数，就重传
-    if (_rto_count <= TCPConfig::MAX_RETX_ATTEMPTS) {
+    if (_rto_timer.rto_count() <= TCPConfig::MAX_RETX_ATTEMPTS) {
+        // 发送缓冲区中的第一个报文段
         _segments_out.push(_cache.front());
+        _rto_timer.restart();
     }
 }
 
-unsigned int TCPSender::consecutive_retransmissions() const { return _rto_count; }
+unsigned int TCPSender::consecutive_retransmissions() const { return _rto_timer.rto_count(); }
 
 void TCPSender::send_empty_segment() {
     TCPSegment empty_segment;
@@ -123,7 +128,7 @@ void TCPSender::send_empty_segment() {
     segments_out().push(empty_segment);
 }
 
-// My Private Method
+// 先将数据段存入缓存中，然发送出去
 void TCPSender::_send_segment(const TCPSegment &seg) {
     // 当前报文需要占用的长度
     const size_t seg_len = seg.length_in_sequence_space();
@@ -131,10 +136,9 @@ void TCPSender::_send_segment(const TCPSegment &seg) {
     _next_seqno += seg_len;
     _cache.push(seg);
     _segments_out.push(seg);
-    // 为新发送的报文开启超时重传计时器
-    if (not _has_segment_flight) {
-        _rto_timeout = _initial_retransmission_timeout;
-        _sent_tick = _current_tick;
-        _has_segment_flight = true;
+    // 如果没启动计时器，就启动计时器
+    if (not _rto_timer.is_running()) {
+        _rto_timer.run();
+        _rto_timer.reset(_initial_retransmission_timeout);
     }
 }
