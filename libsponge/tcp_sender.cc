@@ -35,22 +35,18 @@ void TCPSender::fill_window() {
         section.header().seqno = next_seqno();
 
         // _next_seqno == 0 代表还没有开始发送数据，此时需要发送SYN报文
-        bool is_syn = (_next_seqno == 0);
-        bool is_fin = _stream.input_ended();
-
-        // 判断是否为SYN报文
-        section.header().syn = is_syn;
+        section.header().syn = (_next_seqno == 0);
 
         // 将数据进行封装
         size_t segment_payload_size = min(TCPConfig::MAX_PAYLOAD_SIZE, fill_space);
         section.payload() = _stream.read(segment_payload_size);
 
         // 空闲窗口中至少要留有一位序号的位置才能将当前数据包添加FIN(bytes_in_flight的也会占用窗口)
-        if (is_fin && fill_space > section.length_in_sequence_space()) {
+        if (_stream.eof() && fill_space > section.length_in_sequence_space()) {
             section.header().fin = true;
         }
 
-        // 如果这个报文啥都没有，或者FIN报文已经被对方确认了，就不要发送了，代表连接全部结束了
+        // 如果这个报文啥都没有，或者FIN报文已经发送了，就没必要发送新的数据段了
         if (section.length_in_sequence_space() == 0 || _next_seqno == _stream.bytes_written() + 2) {
             return;
         }
