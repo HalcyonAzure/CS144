@@ -91,9 +91,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     }
 
     // 如果剩余的窗口还有空间，就填入内容
-    if (_window_size > bytes_in_flight()) {
-        fill_window();
-    }
+    fill_window();
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
