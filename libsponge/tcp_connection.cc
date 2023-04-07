@@ -35,25 +35,26 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         return;
     }
 
-    // 如果TCP连接处于LISTEN状态，只接受SYN报文
+    // 如果TCP连接处于LISTEN状态，只接受SYN报文，并且返回一个SYN + ACK的报文
     if (not _receiver.ackno().has_value()) {
         if (seg.header().syn) {
-            // 收到SYN报文时，建立连接
             _sender.fill_window();
         } else {
-            // 收到的报文不是SYN报文，直接返回
             return;
         }
     }
 
     // 接受这个报文
     _receiver.segment_received(seg);
-    // 对这个报文的ACK确认进行更新，用于下一次更新的确认
-    _sender.ack_received(seg.header().ackno, seg.header().win);
+
+    // 对ACK报文进行确认更新，用于下一次更新的确认
+    if (seg.header().ack) {
+        _sender.ack_received(seg.header().ackno, seg.header().win);
+    }
 
     // 接收到正确的EOF报文，代表对方发送过来的数据流已经结束了，但是自己还有数据要发送
+    // 因此需要等待自己的数据流发送完毕后才能关闭连接
     if (_receiver.stream_out().eof() && not _sender.stream_in().eof()) {
-        //
         _linger_after_streams_finish = false;
     }
 
@@ -68,6 +69,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         (seg.header().fin || seg.header().syn || seg.header().seqno != _receiver.ackno())) {
         _sender.send_empty_segment();
     }
+
     // 填装需要发送的报文
     _push_out();
 }
@@ -88,11 +90,12 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
     _sender.tick(ms_since_last_tick);
     // 如果超时重传次数超过了最大重传次数，那么就直接关闭连接
     if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
-        _error_with_rst();
+        _send_rst();
         return;
     }
-    // 超过十倍的超时等待时间，需要发送的数据包和ack已经结束，可以关闭连接了
-    if (time_since_last_segment_received() >= _linger_time && _sender.stream_in().eof()) {
+    // 在我方的数据包全部发送并且处理完毕以后，如果接受到了对方传来的EOF报文，并且等待了十倍的RTT时间都没有新的报文传来，则代表连接已经关闭
+    if (time_since_last_segment_received() >= _linger_time && _sender.stream_in().eof() &&
+        _receiver.stream_out().input_ended()) {
         _is_active = false;
     }
     _push_out();
@@ -115,7 +118,7 @@ TCPConnection::~TCPConnection() {
     try {
         if (active()) {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-            _error_with_rst();
+            _send_rst();
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
@@ -134,12 +137,13 @@ void TCPConnection::_push_out() {
     }
 }
 
-void TCPConnection::_error_with_rst() {
+void TCPConnection::_send_rst() {
     _receiver.stream_out().set_error();
     _sender.stream_in().set_error();
     _is_active = false;
-    _sender.send_empty_segment();
-    _sender.segments_out().front().header().rst = true;
-    _segments_out.push(_sender.segments_out().front());
-    _sender.segments_out().pop();
+
+    // Send RST Segment
+    TCPSegment rst_segment;
+    rst_segment.header().rst = true;
+    _segments_out.push(rst_segment);
 }

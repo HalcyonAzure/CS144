@@ -31,7 +31,7 @@ class TCPConnection {
     void _push_out();
 
     // error occured
-    void _error_with_rst();
+    void _send_rst();
 
     // const data
     const size_t _linger_time = 10 * _cfg.rt_timeout;
