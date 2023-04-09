@@ -99,9 +99,9 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
     _update_arp_table({src, dst});
 
     // 过滤掉不是发给自己的IP地址的包
-    // if (dst.raw_ip_addr != _ip_address.ipv4_numeric()) {
-    //     return {};
-    // }
+    if (dst.raw_ip_addr != _ip_address.ipv4_numeric()) {
+        return {};
+    }
 
     // 接受到ARP请求的时候，返回一个包含自己信息的ARP响应报文，同时利用这个frame更新自己的ARP表
     if (arp_msg.opcode == ARPMessage::OPCODE_REQUEST) {
@@ -120,12 +120,12 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
     }
 
     // 收到别人传送回来的ARP的时候，如果缓存中有等待的对应条目，则删除，并发送对应的数据
-    for (auto entry = _probe_table.begin(); entry != _probe_table.end(); entry++) {
+    for (auto entry = _probe_table.begin(); entry != _probe_table.end();) {
         if (entry->first.raw_ip_addr == src.raw_ip_addr) {
             send_datagram(entry->first.datagram, Address::from_ipv4_numeric(entry->first.raw_ip_addr));
-            auto probe = entry->first;
+            entry = _probe_table.erase(entry);
+        } else {
             entry++;
-            _probe_table.erase(probe);
         }
     }
 
@@ -134,24 +134,33 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void NetworkInterface::tick(const size_t ms_since_last_tick) {
-    // 将所有超过TTL的ARP条目都删除
-    for (auto entry = _arp_table.begin(); entry != _arp_table.end(); entry++) {
+    // 将检测是否有超时的ARP条目
+    for (auto entry = _arp_table.begin(); entry != _arp_table.end();) {
         if (entry->second < ms_since_last_tick) {
-            // _arp_table.erase(entry->first);
-            auto arp = entry->first;
-            _arp_table.erase(arp);
-            entry++;
+            // 删除多余的ARP条目
+            entry = _arp_table.erase(entry);
         } else {
             entry->second -= ms_since_last_tick;
+            entry++;
         }
     }
-
+    // 检测是否有超时的探针
     for (auto entry = _probe_table.begin(); entry != _probe_table.end(); entry++) {
         if (entry->second < ms_since_last_tick) {
-            EthernetFrame re_probe;
-            re_probe.header() = {ETHERNET_BROADCAST, _ethernet_address, EthernetHeader::TYPE_ARP};
-            re_probe.payload() = re_probe.serialize();
-            _frames_out.push(re_probe);
+            // 重新发送超时的探针
+            ARPMessage re_probe_arp;
+            re_probe_arp.opcode = ARPMessage::OPCODE_REQUEST;
+            re_probe_arp.sender_ip_address = _ip_address.ipv4_numeric();
+            re_probe_arp.sender_ethernet_address = _ethernet_address;
+            re_probe_arp.target_ip_address = entry->first.raw_ip_addr;
+            re_probe_arp.target_ethernet_address = {};
+
+            EthernetFrame re_probe_frame;
+            re_probe_frame.header() = {ETHERNET_BROADCAST, _ethernet_address, EthernetHeader::TYPE_ARP};
+            re_probe_frame.payload() = re_probe_arp.serialize();
+            _frames_out.push(re_probe_frame);
+
+            // 重置探针条目对应的时间
             entry->second = arp_probe_ttl;
         } else {
             entry->second -= ms_since_last_tick;
@@ -159,6 +168,7 @@ void NetworkInterface::tick(const size_t ms_since_last_tick) {
     }
 }
 
+//! 更新ARP条目
 void NetworkInterface::_update_arp_table(initializer_list<ArpEntry> arp_entry) {
     for (auto &entry : arp_entry) {
         _arp_table[entry] = arp_max_ttl;
