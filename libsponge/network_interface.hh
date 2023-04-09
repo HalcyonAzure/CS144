@@ -1,10 +1,13 @@
 #ifndef SPONGE_LIBSPONGE_NETWORK_INTERFACE_HH
 #define SPONGE_LIBSPONGE_NETWORK_INTERFACE_HH
 
+#include "address.hh"
 #include "ethernet_frame.hh"
+#include "ipv4_datagram.hh"
 #include "tcp_over_ip.hh"
 #include "tun.hh"
 
+#include <map>
 #include <optional>
 #include <queue>
 
@@ -31,6 +34,31 @@
 //! and learns or replies as necessary.
 class NetworkInterface {
   private:
+    //! 构造Arp条目
+    struct ArpEntry {
+        uint32_t raw_ip_addr;
+        EthernetAddress eth_addr;
+        bool operator<(const ArpEntry &rhs) const { return raw_ip_addr < rhs.raw_ip_addr; }
+    };
+
+    struct ArpProbe {
+        uint32_t raw_ip_addr;
+        InternetDatagram datagram;
+        bool operator<(const ArpProbe &rhs) const { return raw_ip_addr < rhs.raw_ip_addr; }
+    };
+
+    //! 记录最大的ttl时间
+    const size_t arp_max_ttl = 30000;
+
+    //! 记录最大的探针时间
+    const size_t arp_probe_ttl = 5000;
+
+    //! 用于记录arp表
+    std::map<ArpEntry, size_t> _arp_table{};
+
+    //! 用于记录探针表
+    std::map<ArpProbe, size_t> _probe_table{};
+
     //! Ethernet (known as hardware, network-access-layer, or link-layer) address of the interface
     EthernetAddress _ethernet_address;
 
@@ -39,6 +67,9 @@ class NetworkInterface {
 
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
+
+    //! update arp_table
+    void _update_arp_table(std::initializer_list<ArpEntry> arp_entry);
 
   public:
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses
