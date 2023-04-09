@@ -2,9 +2,7 @@
 
 #include "arp_message.hh"
 #include "ethernet_frame.hh"
-#include "ethernet_header.hh"
 
-#include <cstdint>
 #include <iostream>
 
 // Dummy implementation of a network interface
