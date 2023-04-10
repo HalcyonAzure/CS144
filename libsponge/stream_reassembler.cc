@@ -25,6 +25,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     bool eof_flag = false;
     size_t expand_size = index + data.length();
 
+    // 短路错误index
     if (index > write_p + _output.remaining_capacity()) {
         return;
     }
@@ -82,13 +83,12 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 // 返回缓冲区内还没有处理的内容
 size_t StreamReassembler::unassembled_bytes() const {
     size_t n = 0;
-
+    // 检查缓存区有多少字符
     for (size_t i = write_p; i < cache.length(); i++) {
         if (dirty_check[i]) {
             n++;
         }
     }
-
     return n;
 }
 // 当不再写入新的TCP段并且已有的字段全部排序结束的时候缓冲区不再需要排序
