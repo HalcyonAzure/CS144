@@ -37,30 +37,27 @@ void Router::add_route(const uint32_t route_prefix,
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-    auto matched_entry = _route_table.end();
+    auto path = _route_table.end();
+    const auto &dst_ip = dgram.header().dst;
     for (auto entry = _route_table.begin(); entry != _route_table.end(); entry++) {
-        if (entry->route_prefix == 0 ||
-            (entry->route_prefix ^ dgram.header().dst) >> (32 - entry->prefix_length) == 0) {
-            if (matched_entry == _route_table.end() || matched_entry->prefix_length < entry->prefix_length) {
-                matched_entry = entry;
-            }
+        // CIDR的子网位数是多少，相当于就是在0的基础上补多少个1，但是当prefix_length == 0的时候，
+        // 由于位运算的特性，子网掩码会全部变成1，也就相当于是/32的情况。因此当检测到子网掩码是0的时候要直接跳过
+        const uint32_t &mask = entry->prefix_length ? (~0U) << (32 - entry->prefix_length) : 0;
+        const auto network_address = entry->route_prefix & mask;
+        if ((dst_ip & mask) == network_address) {
+            path = entry;
         }
     }
 
-    // 检查是否存在对应的路由规则，不存在则直接抛弃
-    if (matched_entry == _route_table.end()) {
-        return;
-    }
-
-    // 如果数据包的TTL减少到了0，则直接丢弃
-    if (dgram.header().ttl-- <= 1) {
+    // 检查是否存在对应的路由规则，或者TTL可否生存，如果不符合则丢弃
+    if (path == _route_table.end() || dgram.header().ttl-- <= 1) {
         return;
     }
 
     // 将数据包发送给正确的接口
-    AsyncNetworkInterface &interface = _interfaces[matched_entry->interface_num];
-    if (matched_entry->next_hop.has_value()) {
-        interface.send_datagram(dgram, matched_entry->next_hop.value());
+    AsyncNetworkInterface &interface = _interfaces[path->interface_num];
+    if (path->next_hop.has_value()) {
+        interface.send_datagram(dgram, path->next_hop.value());
     } else {
         interface.send_datagram(dgram, Address::from_ipv4_numeric(dgram.header().dst));
     }
