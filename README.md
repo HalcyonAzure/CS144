@@ -16,6 +16,10 @@
 * [CS144-Lab5 计算机网络：Network Interface的功能](https://halc.top/p/db490294)
 * [CS144-Lab6 计算机网络：路由转发](https://halc.top/p/195b5fa9)
 
+## 实验须知
+
+截止 2024/04/09，需使用`gcc-10`来完成环境的编译配置，否则会出现报错
+
 ## 实验备份
 
 实验用不包含答案的[空仓库](https://github.com/HalcyonAzure/sponge)
